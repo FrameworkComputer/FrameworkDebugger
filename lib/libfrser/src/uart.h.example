@@ -1,0 +1,23 @@
+/* This is an example for what frser.c requires from an uart.h */
+
+#ifndef _UART_H_
+#define _UART_H_
+
+/* These function names can be any, but to show the types. */
+uint8_t uart_recv(void);
+void uart_send(uint8_t val);
+/* ------- */
+
+/* ifdef FRSER_FEAT_UART_TIMEOUT */
+void uart_set_timeout(jmp_buf *buf);
+/* endif */
+
+/* These defines are what is really used: */
+#define BAUD 115200
+
+#define RECEIVE() uart_recv()
+#define SEND(n) uart_send(n)
+#define UART_BUFLEN 1280
+#define UARTTX_BUFLEN 0
+
+#endif

@@ -1,0 +1,9 @@
+/* This is a hypothetical example of what libfrser expects main.h to contain. */
+
+#include <stdint.h>
+#include "pgmspace-compat.h"
+#include <ctype.h>
+#include <string.h>
+#include <stdlib.h>
+#include <setjmp.h>
+#include <util/delay.h>
