@@ -1,0 +1,6 @@
+[submodule "electrical/teensy_library"]
+	path = electrical/FrameworkDebugger/teensy_library/
+	url = git@github.com:XenGi/teensy_library.git
+[submodule "electrical/FrameworkDebugger/teensy.pretty"]
+	path = electrical/FrameworkDebugger/teensy.pretty
+	url = git@github.com:XenGi/teensy.pretty.git

@@ -1,0 +1,4 @@
+(fp_lib_table
+  (lib (name "teensy")(type "KiCad")(uri "${KIPRJMOD}/teensy.pretty")(options "")(descr ""))
+  (lib (name "debuggerfpcfootprints")(type "KiCad")(uri "${KIPRJMOD}/connectors/footprints.pretty")(options "")(descr ""))
+)
