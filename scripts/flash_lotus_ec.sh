@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CTRLUART=/dev/ttyACM0
-FLASHUART=/dev/ttyACM1
+FLASHUART=ttyACM1
 
 if [ $# -eq 0 ]; then
 	#no argument, try default locations
@@ -37,10 +37,11 @@ sleep 1
 
 # take out of reset
  echo -e "\npin 21 1\n" > ${CTRLUART}
-
-#### DO FLASH 
-../../uart-update-tool/Release/Uartupdatetool -port ${FLASHUART} -opr wr -addr 0x200c3020 -file ${MONITOR}
-../../uart-update-tool/Release/Uartupdatetool -port ${FLASHUART} -opr wr -addr 0x0000 -file ${FLASH_SRC}
+sleep 1
+#### DO FLASH
+echo "Using NUVOTON Tool ${software/ec/build/hx30/util/uartupdatetool}" 
+~/software/ec/build/hx30/util/uartupdatetool --port ${FLASHUART} --opr wr --addr 0x200c3020 --file ${MONITOR}
+~/software/ec/build/hx30/util/uartupdatetool --port ${FLASHUART} --opr wr --auto --addr 0x0000 --file ${FLASH_SRC}
 
 
 #### TAKE OUT OF RESET
