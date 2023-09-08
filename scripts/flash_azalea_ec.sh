@@ -39,9 +39,9 @@ sleep 1
  echo -e "\npin 21 1\n" > ${CTRLUART}
 sleep 1
 #### DO FLASH
-echo "Using NUVOTON Tool ${software/ec/build/hx30/util/uartupdatetool}" 
-~/software/ec/build/hx30/util/uartupdatetool --port ${FLASHUART} --opr wr --addr 0x200c3020 --file ${MONITOR}
-~/software/ec/build/hx30/util/uartupdatetool --port ${FLASHUART} --opr wr --auto --addr 0x0000 --file ${FLASH_SRC}
+echo "Using NUVOTON Tool ./uartupdatetool" 
+./uartupdatetool --port ${FLASHUART} --opr wr --addr 0x200c3020 --file ${MONITOR}
+./uartupdatetool --port ${FLASHUART} --opr wr --auto --addr 0x0000 --file ${FLASH_SRC}
 
 
 #### TAKE OUT OF RESET
