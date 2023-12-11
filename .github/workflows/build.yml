@@ -58,3 +58,16 @@ jobs:
     - name: Build for Teensy 4.1
       run: |
         pio run -e teensy41
+
+    - name: Prepare firmware folder
+      run: |
+        mkdir build
+        cp .pio/build/teensy31/firmware.hex build/teensy31_firmware.hex
+        cp .pio/build/teensy36/firmware.hex build/teensy36_firmware.hex
+        cp .pio/build/teensy41/firmware.hex build/teensy41_firmware.hex
+
+    - name: Upload Teensy Firmware
+      uses: actions/upload-artifact@v3
+      with:
+        name: teensy_firmware
+        path: build
