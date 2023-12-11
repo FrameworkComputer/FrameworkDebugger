@@ -1,0 +1,11 @@
+--- packages/framework-arduinoteensy/cores/teensy3/usb_inst.cpp	2023-12-11 17:03:27.049163985 +0800
++++ packages/framework-arduinoteensy/cores/teensy3/usb_inst.cpp	2023-12-11 17:03:45.544995028 +0800
+@@ -88,7 +88,7 @@
+ #else // F_CPU < 20 MHz
+ 
+ #if defined(USB_SERIAL) || defined(USB_DUAL_SERIAL) || \
+-    defined(USB_TRIPLE_SERIAL) || defined(USB_SERIAL_HID)
++    defined(USB_TRIPLE_SERIAL) || defined(USB_SERIAL_HID) || defined(USB_RAWHID_TRIPLESERIAL)
+ usb_serial_class Serial;
+ #elif (USB_DISABLED)
+ usb_serial_class Serial;

@@ -1,0 +1,73 @@
+name: CI
+on:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'diff/**'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install PlatformIO
+      run: |
+        curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
+        python3 get-platformio.py
+        rm get-platformio.py
+
+        echo $PATH
+        mkdir -p ~/.local/bin
+        ln -s ~/.platformio/penv/bin/platformio ~/.local/bin/platformio
+        ln -s ~/.platformio/penv/bin/pio ~/.local/bin/pio
+        ln -s ~/.platformio/penv/bin/piodebuggdb ~/.local/bin/piodebuggdb
+
+    - name: Pre-build to fetch sources
+      run: |
+        # Build but ignore failure, will install pre-requisites
+        pio run -e teensy36 || true
+        pio run -e teensy41 || true
+
+    - name: Patch Teensy/Arduino Source
+      run: |
+        # Arduino
+        patch -d ~/.platformio/ -p0 < diff/arduino.py.diff
+
+        # Teensy3.6
+        patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.c.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.h.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/usb_inst.cpp.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/yield.cpp.diff
+
+        # Teensy4.1
+        patch -d ~/.platformio/ -p0 < diff/teensy4/usb_desc.c.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy4/usb_desc.h.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy4/usb_inst.cpp.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy4/yield.cpp.diff
+
+    - name: Build for Teensy 3.1
+      run: |
+        pio run -e teensy31
+
+    - name: Build for Teensy 3.6
+      run: |
+        pio run -e teensy36
+
+    - name: Build for Teensy 4.1
+      run: |
+        pio run -e teensy41
+
+    - name: Prepare firmware folder
+      run: |
+        mkdir build
+        cp .pio/build/teensy31/firmware.hex build/teensy31_firmware.hex
+        cp .pio/build/teensy36/firmware.hex build/teensy36_firmware.hex
+        cp .pio/build/teensy41/firmware.hex build/teensy41_firmware.hex
+
+    - name: Upload Teensy Firmware
+      uses: actions/upload-artifact@v3
+      with:
+        name: teensy_firmware
+        path: build
