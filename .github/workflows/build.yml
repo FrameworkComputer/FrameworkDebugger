@@ -21,12 +21,20 @@ jobs:
         ln -s ~/.platformio/penv/bin/pio ~/.local/bin/pio
         ln -s ~/.platformio/penv/bin/piodebuggdb ~/.local/bin/piodebuggdb
 
+    - name: Patch Teensy/Arduino Source
+      run: |
+        patch -d ~/.platformio/ -p0 < diff/arduino.py.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.c.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.h.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/usb_inst.cpp.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy3/yield.cpp.diff
+
     - name: Build for Teensy 3.6
       # Still build 4.1, even if 3.6 fails
       continue-on-error: true
       run: |
         pio run -e teensy36
 
-    - name: Build for Teensy 4.1
-      run: |
-        pio run -e teensy41
+    # - name: Build for Teensy 4.1
+    #   run: |
+    #     pio run -e teensy41

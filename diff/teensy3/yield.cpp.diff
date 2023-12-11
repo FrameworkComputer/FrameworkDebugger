@@ -1,0 +1,27 @@
+--- packages/framework-arduinoteensy/cores/teensy3/yield.cpp	2023-12-11 17:02:27.733713268 +0800
++++ packages/framework-arduinoteensy/cores/teensy3/yield.cpp	2023-12-11 17:02:58.697426531 +0800
+@@ -31,7 +31,7 @@
+ #include <Arduino.h>
+ #include "EventResponder.h"
+ 
+-#ifdef USB_TRIPLE_SERIAL
++#if defined(USB_TRIPLE_SERIAL) || defined(USB_RAWHID_TRIPLESERIAL)
+ uint8_t yield_active_check_flags = YIELD_CHECK_USB_SERIAL | YIELD_CHECK_USB_SERIALUSB1 | YIELD_CHECK_USB_SERIALUSB2; // default to check USB.
+ extern const uint8_t _serialEventUSB2_default;	
+ extern const uint8_t _serialEventUSB1_default;	
+@@ -62,13 +62,13 @@
+ 	}
+ 	// Current workaround until integrate with EventResponder.
+ 
+-#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
++#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL) || defined(USB_RAWHID_TRIPLESERIAL)
+ 	if (yield_active_check_flags & YIELD_CHECK_USB_SERIALUSB1) {
+ 		if (SerialUSB1.available()) serialEventUSB1();
+ 		if (_serialEventUSB1_default) yield_active_check_flags &= ~YIELD_CHECK_USB_SERIALUSB1;
+ 	}
+ #endif
+-#ifdef USB_TRIPLE_SERIAL
++#if defined(USB_TRIPLE_SERIAL) || defined(USB_RAWHID_TRIPLESERIAL)
+ 	if (yield_active_check_flags & YIELD_CHECK_USB_SERIALUSB2) {
+ 		if (SerialUSB2.available()) serialEventUSB2();
+ 		if (_serialEventUSB2_default) yield_active_check_flags &= ~YIELD_CHECK_USB_SERIALUSB2;

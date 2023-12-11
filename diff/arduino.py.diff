@@ -1,0 +1,10 @@
+--- platforms/teensy/builder/frameworks/arduino.py	2023-12-11 17:06:57.115267304 +0800
++++ platforms/teensy/builder/frameworks/arduino.py	2023-12-11 17:07:13.059123524 +0800
+@@ -41,6 +41,7 @@
+     "USB_SERIAL",
+     "USB_DUAL_SERIAL",
+     "USB_TRIPLE_SERIAL",
++    "USB_RAWHID_TRIPLESERIAL",
+     "USB_KEYBOARDONLY",
+     "USB_TOUCHSCREEN",
+     "USB_HID_TOUCHSCREEN",

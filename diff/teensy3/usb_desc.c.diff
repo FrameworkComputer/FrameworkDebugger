@@ -1,0 +1,11 @@
+--- packages/framework-arduinoteensy/cores/teensy3/usb_desc.c	2023-12-11 17:01:29.574251846 +0800
++++ packages/framework-arduinoteensy/cores/teensy3/usb_desc.c	2023-12-11 17:01:36.194190540 +0800
+@@ -1133,7 +1133,7 @@
+         0x03,                                   // bInterfaceClass (0x03 = HID)
+         0x00,                                   // bInterfaceSubClass
+         0x00,                                   // bInterfaceProtocol
+-        0,                                      // iInterface
++        2,                                      // iInterface   <-------------------Change this from 0 to 2!
+         // HID interface descriptor, HID 1.11 spec, section 6.2.1
+         9,                                      // bLength
+         0x21,                                   // bDescriptorType
