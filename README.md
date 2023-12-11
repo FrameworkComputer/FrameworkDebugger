@@ -72,3 +72,34 @@ pio run -e teensy41 --target upload
 pio run -e teensy31 --target upload
 pio run -e teensy36 --target upload
 ```
+
+### EC Serial
+
+```sh
+# For example with tio
+tio /dev/serial/by-id/usb-Framework_CMSIS-DAP_13993040-if04
+
+# Or picocom/minicom/screen
+picocom /dev/ttyACM2 -b 115200
+```
+
+### Flashing EC firmware
+
+Run the script for your target platform
+
+```sh
+./scripts/flash_tgl_ec.sh
+./scripts/flash_adl_ec.sh
+```
+
+### Teensy Control Serial
+
+Only for advanced usage, you can probably ignore this.
+
+```sh
+# For example with tio
+tio /dev/serial/by-id/usb-Framework_CMSIS-DAP_13993040-if00
+
+# Or picocom/minicom/screen
+picocom /dev/ttyACM0 -b 115200
+```
