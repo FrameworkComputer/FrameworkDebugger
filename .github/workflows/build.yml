@@ -25,14 +25,23 @@ jobs:
       run: |
         # Build but ignore failure, will install pre-requisites
         pio run -e teensy36 || true
+        pio run -e teensy41 || true
 
         ls -l ~/.platformio
         ls -l ~/.platformio/platforms/teensy/builder/frameworks/arduino.py
+        # Teensy3.6
         patch -d ~/.platformio/ -p0 < diff/arduino.py.diff
         patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.c.diff
         patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.h.diff
         patch -d ~/.platformio/ -p0 < diff/teensy3/usb_inst.cpp.diff
         patch -d ~/.platformio/ -p0 < diff/teensy3/yield.cpp.diff
+
+        # Teensy4.1
+        patch -d ~/.platformio/ -p0 < diff/arduino.py.diff || true
+        patch -d ~/.platformio/ -p0 < diff/teensy4/usb_desc.c.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy4/usb_desc.h.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy4/usb_inst.cpp.diff
+        patch -d ~/.platformio/ -p0 < diff/teensy4/yield.cpp.diff
 
     - name: Build for Teensy 3.6
       # Still build 4.1, even if 3.6 fails
@@ -40,6 +49,6 @@ jobs:
       run: |
         pio run -e teensy36
 
-    # - name: Build for Teensy 4.1
-    #   run: |
-    #     pio run -e teensy41
+    - name: Build for Teensy 4.1
+      run: |
+        pio run -e teensy41
