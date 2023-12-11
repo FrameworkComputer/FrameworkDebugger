@@ -23,6 +23,11 @@ jobs:
 
     - name: Patch Teensy/Arduino Source
       run: |
+        # Build but ignore failure, will install pre-requisites
+        pio run -e teensy36 || true
+
+        ls -l ~/.platformio
+        ls -l ~/.platformio/platforms/teensy/builder/frameworks/arduino.py
         patch -d ~/.platformio/ -p0 < diff/arduino.py.diff
         patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.c.diff
         patch -d ~/.platformio/ -p0 < diff/teensy3/usb_desc.h.diff
