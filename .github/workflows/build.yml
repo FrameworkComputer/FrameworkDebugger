@@ -14,6 +14,9 @@ jobs:
         curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
         python3 get-platformio.py
         rm get-platformio.py
+
+        echo $PATH
+        mkdir -p ~/.local/bin
         ln -s ~/.platformio/penv/bin/platformio ~/.local/bin/platformio
         ln -s ~/.platformio/penv/bin/pio ~/.local/bin/pio
         ln -s ~/.platformio/penv/bin/piodebuggdb ~/.local/bin/piodebuggdb
