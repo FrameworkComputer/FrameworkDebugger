@@ -1,0 +1,29 @@
+name: CI
+on:
+  push:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install PlatformIO
+      run: |
+        curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
+        python3 get-platformio.py
+        rm get-platformio.py
+        ln -s ~/.platformio/penv/bin/platformio ~/.local/bin/platformio
+        ln -s ~/.platformio/penv/bin/pio ~/.local/bin/pio
+        ln -s ~/.platformio/penv/bin/piodebuggdb ~/.local/bin/piodebuggdb
+
+    - name: Build for Teensy 3.6
+      # Still build 4.1, even if 3.6 fails
+      continue-on-error: true
+      run: |
+        pio run -e teensy36
+
+    - name: Build for Teensy 4.1
+      run: |
+        pio run -e teensy41
