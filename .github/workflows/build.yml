@@ -39,11 +39,14 @@ jobs:
         patch -d ~/.platformio/ -p0 < diff/teensy3/yield.cpp.diff
 
         # Teensy4.1
-        patch -d ~/.platformio/ -p0 < diff/arduino.py.diff || true
         patch -d ~/.platformio/ -p0 < diff/teensy4/usb_desc.c.diff
         patch -d ~/.platformio/ -p0 < diff/teensy4/usb_desc.h.diff
         patch -d ~/.platformio/ -p0 < diff/teensy4/usb_inst.cpp.diff
         patch -d ~/.platformio/ -p0 < diff/teensy4/yield.cpp.diff
+
+    - name: Build for Teensy 3.1
+      run: |
+        pio run -e teensy31
 
     - name: Build for Teensy 3.6
       run: |
