@@ -1,7 +1,8 @@
 #!/bin/bash
 
-CTRLUART=/dev/ttyACM0
-FLASHUART=ttyACM1
+DEVICE=${DEVICE:-"/dev/serial/by-id/usb-Framework_CMSIS-"}
+CTRLUART=(${DEVICE}*-if00)
+FLASHUART=$(basename $(readlink ${DEVICE}*-if02))
 
 if [ $# -eq 0 ]; then
 	#no argument, try default locations
@@ -28,7 +29,7 @@ echo "USING ${FLASH_SRC} to flash EC"
 echo -e "\n" > ${CTRLUART}
 #put ec into reset 
 echo -e "\npin 21 0 opendrain\n" > ${CTRLUART}
-#read INPUT < /dev/ttyACM0
+#read INPUT < ${CTRLUART}
 sleep 1
 
 #enable 10k external pulldown on UART RX wired to pin 20
@@ -48,7 +49,7 @@ echo "Using NUVOTON Tool ./uartupdatetool"
 
 #put ec into reset 
 echo -e "\npin 21 0 opendrain\n" > ${CTRLUART}
-#read INPUT < /dev/ttyACM0
+#read INPUT < ${CTRLUART}
 sleep 1
 
 #disable 10k external pulldown on UART RX wired to pin 20
