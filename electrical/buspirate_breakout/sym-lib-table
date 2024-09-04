@@ -1,0 +1,7 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "teensy")(type "Legacy")(uri "${KIPRJMOD}/teensy_library/teensy.lib")(options "")(descr ""))
+  (lib (name "teensycon")(type "Legacy")(uri "${KIPRJMOD}/connectors/2022-09-29_00-43-45.lib")(options "")(descr ""))
+  (lib (name "teensycon2")(type "Legacy")(uri "${KIPRJMOD}/connectors/2022-09-29_00-44-58.lib")(options "")(descr ""))
+  (lib (name "INA236")(type "KiCad")(uri "${KIPRJMOD}/INA236.kicad_sym")(options "")(descr ""))
+)
