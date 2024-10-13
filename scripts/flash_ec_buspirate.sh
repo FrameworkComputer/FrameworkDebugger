@@ -36,7 +36,7 @@ sleep 1
 echo -e "\r\na 6\r\n" > ${CTRLUART}
 sleep 1
 
-# take out of reset
+# Take out of reset, set pin 2 (connected to nRESETI_R) as a pullup input on the buspirate
  echo -e "\r\n@ 2\r\n" > ${CTRLUART}
 sleep 1
 
