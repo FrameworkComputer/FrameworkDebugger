@@ -46,7 +46,8 @@ echo -e "\r\na 2\r\n" > ${CTRLUART}
 #read INPUT < ${CTRLUART}
 sleep 1
 
-#enable 10k external pulldown on UART RX wired to pin 20
+# Enable BusPirate's 10k internal pulldown on UART RX wired to IO6
+# This switches the Nuvoton EC's UART from console mode into UUT update mode
 echo -e "\r\na 6\r\n" > ${CTRLUART}
 sleep 1
 
