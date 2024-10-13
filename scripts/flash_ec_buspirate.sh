@@ -40,6 +40,9 @@ sleep 1
  echo -e "\r\n@ 2\r\n" > ${CTRLUART}
 sleep 1
 
+# Bridge UART via the BusPirate
+# This turns the current UART consle to the bus pirate into a bridge to the EC
+# After we're done, to exit, you have press the buspirate button
 echo -e "\r\nbridge\r\n" > ${CTRLUART}
 
 sleep 1
