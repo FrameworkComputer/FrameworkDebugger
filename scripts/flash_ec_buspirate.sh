@@ -27,7 +27,7 @@ echo "USING ${FLASH_SRC} to flash EC"
 
 #clear any invalid commands from uart buffer
 echo -e "n\r\n" > ${CTRLUART}
-#put ec into reset 
+# Put EC into reset by pulling nRESETI_R (pin 2 on buspirate) low
 echo -e "\r\na 2\r\n" > ${CTRLUART}
 #read INPUT < ${CTRLUART}
 sleep 1
