@@ -1,4 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Wiring:
+# | JECDB               | BusPirate 5 |
+# |  1 EC_DEBUG_VCC     | VOUT/VREF   |
+# |  2 UART_0_CRXD_DTXD |             |
+# |  3 JTAG_TMS         |             |
+# |  4 JTAG_CLK         |             |
+# |  5 JTAG_DTO         |             |
+# |  6 EC_UART0_TX      | IO5         |
+# |  7 EC_UART0_RX      | IO4         |
+# |  8 UART_0_CTXD_DRXD |             |
+# |  9 nRESETI_R        | IO2         |
+# | 10 GND              | GND         |
+
 
 DEVICE=${DEVICE:-"/dev/serial/by-id/usb-Bus_Pirate_Bus_Pirate_5"}
 CTRLUART=(${DEVICE}*-if00)
