@@ -14,6 +14,12 @@
 #    If the adapter shows up at a different port, set it in an environment variable:
 #    env FLASHUART=ttyUSB1 ./flash_manual_ec.sh ~/Downloads/sunflower/
 # 4. Press and release EC reset button to boot EC again
+#
+# Useful to combine with the gh command
+# > gh run download -R FrameworkComputer/ec -D temp
+# > ./flash_manual_ec.sh temp/
+# Or with chromium chroot build
+# > ./flash_manual_ec.sh ~/chromiumos/src/platform/ec/build/zephyr/marigold/output/
 
 FLASHUART=ttyUSB0
 
