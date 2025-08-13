@@ -1,4 +1,4 @@
-name: CI
+name: Teensy CI
 on:
   push:
     paths:
@@ -9,6 +9,10 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+        working-directory: teensy
     steps:
     - uses: actions/checkout@v5
 
