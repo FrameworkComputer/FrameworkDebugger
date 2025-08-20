@@ -88,8 +88,8 @@ This connector provides a way to program/debug the EC, see the EC booting,
 then see the CPU boot logs.
 
 While the EC is very chatty and even offers a console, the CPU will probably
-not say anything unless the software (firmware and/or OS) is told to use the
-serial port (TODO: Provide info about kernel cmdline and getty).
+not say anything unless the software (firmware and/or OS) [is told to use the
+serial port](#cpu-uart).
 
 This connector is usually placed near the EC chip, usually bottom right area
 of the board, near the keyboard connector and possibly even near the BIOS chip.
@@ -226,3 +226,68 @@ Pinout:
 3. XRES
 4. SWD_CLK
 5. SWD_IO
+
+## EC UART
+
+Once connected to the EC UART (either open case or closed case, see above), the
+Embedded Controller's command prompt can be reached. The UART settings are
+`115200 8N1`.
+
+`help` will give a list of available commands. `help $command` for help
+specific to a certain command.
+
+Interesting commands:
+* `powerbtn` - simulates button press
+* `apshutdown` - forces CPU off
+* `version` - gives the EC version (generally matches BIOS version)
+
+## CPU UART
+
+Once connected to the CPU UART (either open case or closed case, see above)
+the port can be used for a variety of uses:
+
+### Linux
+
+Once the `Advanced > Serial Console` BIOS option is enabled, a new `/dev/ttyS4`
+device will show up under Linux (at least on AMD systems).
+
+This serial device is useful to manage a linux system even in cases where doing
+it over the display is less desired (ex: debugging crashes, lights out
+management over the text console without KVMs involving screen output)
+
+#### Kernel console
+
+`console=ttyS4,115200` can be added to the kernel command line (just before an
+entry of `console=tty0`, otherwise you might not see any more output on the
+normal screen). This way the kernel will output any messages to the UART
+console as well. `loglevel=9` is also useful for debugging the kernel messages
+while doing this. If there's someone listening on the other end of the UART
+port any kernel crashes or restarts might be easier to root cause.
+
+#### Getty
+
+One can login to the linux system via this UART console, a
+[getty](https://en.wikipedia.org/wiki/Getty_(unix)) can be started:
+`sudo systemctl enable --now getty@ttyS4.service`
+
+Note: the getty will use the currently configured baud rate. If you're already
+using the kernel console instructions above, this will be 115200, otherwise
+you might have to adjust the systemd job for the desired serial settings.
+
+Once the service is enabled a login prompt will appear on the uart console.
+With the appropriate authetication the system can be managed over the UART
+console with no other graphics or networking running.
+
+### BIOS
+
+The BIOS settings can be managed through the CPU UART console by enabling
+`Advanced > Console Redirect Configuration > Console Serial Redirect`.
+It's also worth double-checking if the
+`Advanced > Console Redirect Configuration > MMIO_UART0 (FCH) > PortEnable`
+setting is set to Enabled.
+
+Once that's done, the BIOS should be visible as soon as the next reboot on the
+UART console. The uart settings of the serial monitor match the settings
+configured in the bios, the default is 115200 8N1.
+
+Normal boot keys like F2 and F12 should also work to interrupt the boot process.
