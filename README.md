@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Framework laptops are capable of being debugged and programmed from a
+Framework Laptops are capable of being debugged and programmed from a
 variety of interfaces. This document describes all of them and offers some
 tips on what hardware is needed.
 
@@ -13,10 +13,10 @@ Here's a short list:
 * PD SWD
 * SOC SPI Flash (BIOS)
 
-## CCD
+## CCD UART
 
 EC & CPU UARTs can be accessed without opening the DUT (Device Under Test,
-aka the framework laptop) up by connecting to the USB Type-C ports on the
+aka the Framework Laptop) up by connecting to the USB Type-C ports on the
 right of the device (side with the power button).
 
 The USB Type-C port needs to be told to go to debug accessory mode
@@ -43,7 +43,7 @@ that inspired this document and tool incubation.
 
 TODO: Add Josh Cook's https://i2clabs.com.au/ec-debug-expansion-card/
 
-### Making a Framework CCD Adaptor from Scratch
+### Making an Adapter from Scratch
 
 One needs a [USB Type-C Male breakout board](https://www.digikey.com/en/products/detail/saiko-systems-ltd./BRK-USB-CPV3.0/15283090)
 and some kind of UART interface (FTDI or any other 3.3V UART breakout / cable
@@ -68,12 +68,17 @@ something else (or 0 ohm) in a pinch.
 Note 2: The table above describes the Rp/Rp (both pullup to VBUS) configuration.
 Rd/Rd to GND should also work.
 
+### Reworking a Type-C Expansion Card
+
+Instead of using a breakout board, you can re-use an existing TYpe-C expansion
+card and repurpose it as a CCD UART adapter.
+
 ## Open Case Debugging
 
 For this you'll need to connect to various connectors on the board. You will
 have to open the DUT (and cope with the blinking red LEDs due to chassis
-intrusion). Most likely the connectors themselves will not be populated on
-production boards so you will have to solder them yourself.
+intrusion). The connectors themselves are not populated on production boards so
+you will have to solder them yourself.
 See each connector for part numbers.
 
 ### JECDB
