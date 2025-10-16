@@ -11536,7 +11536,7 @@
 	)
 	(wire
 		(pts
-			(xy 237.49 245.11) (xy 252.73 245.11)
+			(xy 251.46 245.11) (xy 252.73 245.11)
 		)
 		(stroke
 			(width 0)
@@ -13396,7 +13396,7 @@
 	)
 	(wire
 		(pts
-			(xy 220.98 242.57) (xy 237.49 242.57)
+			(xy 220.98 242.57) (xy 251.46 242.57)
 		)
 		(stroke
 			(width 0)
@@ -13536,7 +13536,7 @@
 	)
 	(wire
 		(pts
-			(xy 237.49 242.57) (xy 237.49 245.11)
+			(xy 251.46 242.57) (xy 251.46 245.11)
 		)
 		(stroke
 			(width 0)
@@ -15084,6 +15084,16 @@
 		)
 		(uuid "21595172-878d-4d0a-8434-5aa72e01d571")
 	)
+	(label "~{EC_RST}"
+		(at 234.696 242.57 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "26389d09-561b-4275-9403-e84d53e88d58")
+	)
 	(label "AP_SPI_CLK"
 		(at 375.92 69.85 0)
 		(effects
@@ -15224,6 +15234,16 @@
 		)
 		(uuid "58a38181-8b4b-4f2d-80dd-fd85c272ba67")
 	)
+	(label "JTAG_TDI"
+		(at 242.57 257.81 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "5991c494-4f36-47ec-9a9d-24fccccbdbbc")
+	)
 	(label "FTDI_RTS"
 		(at 171.45 128.27 0)
 		(effects
@@ -15283,6 +15303,16 @@
 			(justify left bottom)
 		)
 		(uuid "6c3d892f-ecbd-4d6d-a7af-a0c440cbbaca")
+	)
+	(label "JTAG_TMS"
+		(at 242.57 252.73 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "700ae0bc-0395-4d6f-ac90-79b5d3a2c1f3")
 	)
 	(label "Host_DM"
 		(at 99.06 102.87 0)
@@ -15534,6 +15564,16 @@
 		)
 		(uuid "a1c451b3-8122-4b9a-bb09-7501d41f727a")
 	)
+	(label "JTAG_TCK"
+		(at 242.57 250.19 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "a66241da-1ce6-4b4b-92d3-83a5beec2f01")
+	)
 	(label "FTDI_TX_AP_RX"
 		(at 308.61 184.15 180)
 		(effects
@@ -15733,6 +15773,16 @@
 			(justify left bottom)
 		)
 		(uuid "bf8853fa-1d40-450d-9a64-adeb1a77e008")
+	)
+	(label "JTAG_TDO"
+		(at 242.57 255.27 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c145ccbf-0b74-4cd5-8c86-5b1533799250")
 	)
 	(label "AP_SPI_CS"
 		(at 289.56 52.07 180)
