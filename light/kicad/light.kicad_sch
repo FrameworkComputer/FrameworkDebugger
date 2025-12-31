@@ -19071,7 +19071,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Library_Myself:TSSOP-16_L5.0-W4.4-P0.65-LS6.4-BL"
+		(property "Footprint" "0JLC:DHVQFN-16_L3.5-W2.5-P0.50-BL-EP"
 			(at 74.93 254 0)
 			(effects
 				(font
@@ -19924,7 +19924,7 @@
 				)
 			)
 		)
-		(property "Footprint" "EAST1616RGBA1"
+		(property "Footprint" ""
 			(at 137.16 266.7 0)
 			(effects
 				(font
@@ -19998,7 +19998,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Library_Myself:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR"
+		(property "Footprint" "Package_SON:Texas_X2SON-5_0.8x0.8mm_P0.48mm_RoutingVia"
 			(at 264.16 184.15 0)
 			(effects
 				(font
@@ -24722,7 +24722,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
 			(at 146.05 24.13 0)
 			(effects
 				(font
@@ -27621,7 +27621,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Library_Myself:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR"
+		(property "Footprint" "Package_SON:Texas_X2SON-5_0.8x0.8mm_P0.48mm_RoutingVia"
 			(at 283.21 208.28 0)
 			(effects
 				(font
@@ -28791,7 +28791,7 @@
 				)
 			)
 		)
-		(property "Footprint" "EAST1616RGBA1"
+		(property "Footprint" ""
 			(at 52.07 226.06 0)
 			(effects
 				(font
@@ -28937,7 +28937,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "ACES_50950-0084N-002"
+		(property "Footprint" ""
 			(at 339.09 55.88 0)
 			(effects
 				(font
@@ -29229,7 +29229,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Connector_PinHeader_1.27mm:PinHeader_2x05_P1.27mm_Vertical_SMD"
+		(property "Footprint" ""
 			(at 326.39 96.52 0)
 			(effects
 				(font
@@ -29320,7 +29320,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical_SMD_Pin1Left"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
 			(at 367.03 17.78 0)
 			(effects
 				(font
@@ -30535,7 +30535,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "HRS_FH19C-10S-0.5SH"
+		(property "Footprint" ""
 			(at 393.7 17.78 0)
 			(effects
 				(font
