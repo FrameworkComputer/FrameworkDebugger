@@ -199,6 +199,13 @@ on the voltage reference. Turning on either SPI_VCC or raising the
 voltage of any of the SPI pins while the CPU is off causes leaks that might
 damage hardware.
 
+#### ROM Flash
+
+The flash chip itself uses WSON8 8x6mm footprint.
+Unfortunately it cannot be flashed using the traditional clips that work on SOIC8 chips.
+But you can get special pogo pin connectors to press onto the chips leads and flash it.
+Or get a WSON8 socket.
+
 ### JPD
 
 This connector can be used to flash and debug the PD chips. Unless you're
