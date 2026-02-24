@@ -21,7 +21,7 @@
 # Or with chromium chroot build
 # > ./flash_manual_ec.sh ~/chromiumos/src/platform/ec/build/zephyr/marigold/output/
 
-FLASHUART=ttyUSB0
+FLASHUART=${FLASHUART:-ttyUSB0}
 
 FLASH_SRC="$1/ec.bin"
 MONITOR="$1/npcx_monitor.bin"
