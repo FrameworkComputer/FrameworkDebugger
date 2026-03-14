@@ -6,7 +6,7 @@
 # Using bare UART adapter with manual reset/flashmode buttons
 # Usage:
 # 0. Connect USB-UART adapter to EC UART (TX, RX, GND)
-# 1. Hold down flashmode button (5.1k from EC UART TX to GND)
+# 1. Hold down flashmode button (4.7−10kΩ, e.g. 5.1k from EC UART TX to GND)
 # 2. Press and release EC reset button (RST short to GND)
 # 3. Run this script to flash
 #    ./flash_manual_ec.sh ~/Downloads/sunflower/

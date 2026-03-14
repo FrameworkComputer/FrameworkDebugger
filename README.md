@@ -108,16 +108,18 @@ one needs to buy and solder it to make use of the signals.
 
 Pinout:
 
-1. 3VL_EC
-2. UART_0_CRXD_DTXD
-3. EC_JTAG_TMS
-4. EC_JTAG_TCK
-5. EC_JTAG_TDO
-6. ECTX_DRX 
-7. ECRX_DTX
-8. UART_0_CTXD_DRXD
-9. EC_RST#
-10. GND
+| Pin | Name               | Function          |
+| ----|--------------------|-------------------|
+| 1   | `3VL_EC`           |                   |
+| 2   | `UART_0_CRXD_DTXD` | CPU UART RX       |
+| 3   | `EC_JTAG_TMS`      | EC JTAG TMS       |
+| 4   | `EC_JTAG_TCK`      | EC JTAG/SWD Clock |
+| 5   | `EC_JTAG_TDO`      | EC JTAG/SWD Data  |
+| 6   | `ECTX_DRX`         | EC UART TX        |
+| 7   | `ECRX_DTX`         | EC UART RX        |
+| 8   | `UART_0_CTXD_DRXD` | CPU UART TX       |
+| 9   | `EC_RST#`          | EC Reset          |
+| 10  | `GND`              | Ground            |
 
 #### Voltage References
 
@@ -134,11 +136,22 @@ this rail as it might cause a short when the board gets reset in other ways.
 CPU UARTs unfortunatelly do not have a voltage reference pin.
 In order to avoid leaks we generally implemented a pattern of open drain
 level shifters on the DUT side. All you have to do to use these pins safely
-is use an open drain for DEBUG_TX_DUT_RX and a hiz input
-(without a debugger pullup) for DEBUG_RX_DUT_TX. The CPU UART pins are
+is use an open drain for `DEBUG_TX_DUT_RX` and a hiz input
+(without a debugger pullup) for `DEBUG_RX_DUT_TX`. The CPU UART pins are
 generally 3.3V. In a pinch they can be used directly with a uart interface,
 but those pins should only be connected after CPU turns on, and
 disconnected before a shutdown or a reboot.
+
+#### Flashing Nuvoton EC
+
+Except the Laptop 13 Intel 11th-13th Gen, all Framework Computer systems use Nuvoton EC chips.
+They have a convenient mechanism to update the EC firmware through the UART pins.
+
+Pull EC UART TX low with 4.7k-10k Ohm resistor while resetting it and the IC stays in bootloader mode.
+Then the uartupdatetool can be used to flash it through UART TX/RX.
+Find the source for this tool in the EC repository unter `utils/uut`.
+
+After flashing is done, the IC does not reset by itself, so just toggle the reset pin once more.
 
 ### JSPI
 
@@ -164,19 +177,19 @@ one needs to buy and solder it to make use of the signals.
 
 Pinout:
 
-1. GND
-2. SOC_SPI_0_CLK
-3. SOC_SPI_0_MISO
-4. SOC_SPI_0_MOSI
-5. SOC_SPI_0_CS#
-6. SPI_VCC
+1. `GND`
+2. `SOC_SPI_0_CLK`
+3. `SOC_SPI_0_MISO`
+4. `SOC_SPI_0_MOSI`
+5. `SOC_SPI_0_CS#`
+6. `SPI_VCC`
 
 #### Voltage References
 
-All SPI pins are referenced to the SPI_VCC rail. SPI_VCC is generally
+All SPI pins are referenced to the `SPI_VCC` rail. `SPI_VCC` is generally
 what powers the spi flash chip as well.
 
-Board     | SPI_VCC
+Board     | `SPI_VCC`
 --------- | ----
 Dogwood   | 1.8V
 Lilac     | 1.8V
@@ -195,7 +208,7 @@ and the CPU, meaning if a debugger is used, the debugger will win a drive fight.
 
 Injecting VCC into the motherboard is not recommended. The CPU should be
 turned on, kept in a quiet state, then the SPI flash programmed based
-on the voltage reference. Turning on either SPI_VCC or raising the
+on the voltage reference. Turning on either `SPI_VCC` or raising the
 voltage of any of the SPI pins while the CPU is off causes leaks that might
 damage hardware.
 
@@ -228,11 +241,11 @@ one needs to buy and solder it to make use of the signals.
 
 Pinout:
 
-1. VCC
-2. GND
-3. XRES
-4. SWD_CLK
-5. SWD_IO
+1. `VCC`
+2. `GND`
+3. `XRES`
+4. `SWD_CLK`
+5. `SWD_IO`
 
 ## EC UART
 
