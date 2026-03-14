@@ -1,0 +1,3 @@
+[submodule "scripts/BusPirate-BPIO2-flatbuffer-interface"]
+	path = scripts/BusPirate-BPIO2-flatbuffer-interface
+	url = https://github.com/DangerousPrototypes/BusPirate-BPIO2-flatbuffer-interface
