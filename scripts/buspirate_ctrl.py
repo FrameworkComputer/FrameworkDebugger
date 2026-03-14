@@ -2,7 +2,7 @@
 """Bus Pirate 5 control tool using BPIO2 binmode.
 
 Uses BPIO (CDC 1) for GPIO control and creates a Python PTY bridge so
-external tools (uartupdatetool, screen) can talk through BPIO's UART.
+external tools (uartupdatetool, tio) can talk through BPIO's UART.
 No bridge mode, no USB reset, no button press needed.
 
 The BP5 binmode port (CDC 1) is a single serial device — only one
@@ -110,11 +110,11 @@ class PtyBridge:
     """Bidirectional bridge between BPIO UART and a PTY.
 
     All BPIO data is buffered in a Python deque. Nothing is written to
-    the PTY master until a reader (screen, uartupdatetool) connects.
+    the PTY master until a reader (tio, uartupdatetool) connects.
 
     TIOCPKT (packet mode) on the master generates status bytes when the
     slave's termios changes, which is how we detect a reader connecting.
-    We delay 200ms after detection so screen's tcflush completes before
+    We delay 200ms after detection so tio's tcflush completes before
     we flush, preventing data loss.
     """
 
@@ -131,7 +131,7 @@ class PtyBridge:
         self.pty_path = os.ttyname(self._slave_fd)
 
         # Enable packet mode — reads from master get a status byte prefix.
-        # Slave termios changes (screen connecting) produce status events.
+        # Slave termios changes (tio connecting) produce status events.
         # Writes to master are unaffected by TIOCPKT.
         fcntl.ioctl(self._master_fd, TIOCPKT, struct.pack('i', 1))
 
@@ -203,7 +203,7 @@ class PtyBridge:
                         # TIOCPKT: first byte is status, rest is payload
                         status = data[0]
                         if status == 0:
-                            # Real data from reader (user typed in screen)
+                            # Real data from reader (user typed in tio)
                             payload = data[1:]
                             if payload:
                                 if self.debug:
@@ -217,7 +217,7 @@ class PtyBridge:
                         else:
                             # Status change — reader connected (termios set)
                             if not self._slave_ready.is_set():
-                                # Wait for screen init (tcflush) to finish
+                                # Wait for tio init (tcflush) to finish
                                 time.sleep(0.2)
                                 self._slave_ready.set()
                                 buflen = sum(len(c) for c in self._buf)
@@ -408,7 +408,7 @@ def cmd_pty_bridge(bp, debug=False, reset_after_start=False):
         pid = os.getpid()
         print(f"PTY bridge active: {bridge.pty_path}")
         print(f"PID: {pid}")
-        print("Connect with:  screen %s 115200" % bridge.pty_path)
+        print("Connect with:  tio %s" % bridge.pty_path)
         print("Reset EC:      kill -USR1 %d" % pid)
         print("Flash mode:    kill -USR2 %d" % pid)
         print("Press Ctrl+C to stop.")
