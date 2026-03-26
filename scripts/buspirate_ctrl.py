@@ -10,10 +10,10 @@ process can use it at a time. To control GPIO while a PTY bridge is
 running, use signals (see below) or combinable flags.
 
 Wiring:
+  BP5 IO3      --> EC VCC1_RST          (reset, active low)
   BP5 IO4 (TX) --> EC CR_SIN1           (UART RX)
   BP5 IO5 (RX) <-- EC CR_SOUT1         (UART TX)
-  BP5 IO6      --[4.7-10K R]--> EC CR_SOUT1/FLPRG1  (flash mode strap)
-  BP5 IO7      --> EC VCC1_RST          (reset, active low)
+  BP5 IO7      --[4.7-10K R]--> EC CR_SOUT1/FLPRG1  (flash mode strap)
   BP5 GND      --- EC GND
 
 Usage:
@@ -58,8 +58,8 @@ from pybpio.bpio_client import BPIOClient
 # Constants
 # ---------------------------------------------------------------------------
 
-IO_RST = 7
-IO_FLPRG = 6
+IO_RST = 3
+IO_FLPRG = 7
 
 BP5_USB_VID = 0x1209
 BP5_USB_PID = 0x7331
