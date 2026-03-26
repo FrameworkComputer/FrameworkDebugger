@@ -300,7 +300,7 @@ def gpio_enter_flash_mode(bp, debug=False):
         io_direction=0,
     )
     time.sleep(1.0)  # Wait for EC to sample FLPRG1 strap
-    # Drive FLPRG1 HIGH (neutralizes the 10K resistor on shared IO5/IO6 line)
+    # Drive FLPRG1 HIGH (neutralizes the 10K resistor on shared EC TX/FLPRG1 line)
     bp.configuration_request(
         io_direction_mask=(1 << IO_FLPRG),
         io_direction=(1 << IO_FLPRG),
@@ -393,7 +393,7 @@ def cmd_reset(bp):
 
 def cmd_reset_hold(bp):
     """Hold EC in reset."""
-    print("Holding EC in reset (IO7 low)...")
+    print("Holding EC in reset (RST low)...")
     gpio_reset_hold(bp)
     print("EC held in reset. Run --reset to release.")
 
@@ -548,7 +548,7 @@ def main():
     # Primary action (mutually exclusive)
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--reset-hold", action="store_true",
-                       help="Hold EC in reset (IO7 low)")
+                       help="Hold EC in reset (RST low)")
     group.add_argument("--pty-bridge", action="store_true",
                        help="PTY bridge (blocks until Ctrl+C)")
     group.add_argument("--flash", metavar="DIR",
