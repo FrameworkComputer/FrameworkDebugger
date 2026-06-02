@@ -285,6 +285,16 @@ Once the service is enabled a login prompt will appear on the uart console.
 With the appropriate authetication the system can be managed over the UART
 console with no other graphics or networking running.
 
+#### Hardware Support
+
+| Codename  | Type-C Port  | Commandline parameter     | Function | Flipped? |
+|-----------|--------------|---------------------------|----------|----------|
+| Dogwood   | Top Back     | `console=ttyS4,115200`    | Full TTY | No       |
+| Tulip     | Middle Right | `console=ttyS4,115200`    | Full TTY | Yes      |
+| Lilac     | Upper Left   | `console=ttyS4,115200`    | Full TTY | No       |
+| Sunflower | Lower Right  | `console=uart,0xfe03e000` | Log only | No       |
+| Sakura    | Lower Right  | `console=ttyS0,115200n8`  | Full TTY | No       |
+
 ### BIOS
 
 The BIOS settings can be managed through the CPU UART console by enabling
