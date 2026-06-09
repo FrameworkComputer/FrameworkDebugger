@@ -191,6 +191,8 @@ what powers the spi flash chip as well.
 
 Board     | `SPI_VCC`
 --------- | ----
+Sakura    | 1.8V
+Tulip     | 1.8V
 Dogwood   | 1.8V
 Lilac     | 1.8V
 Marigold  | 1.8V
