@@ -9,6 +9,10 @@ The BP5 binmode port (CDC 1) is a single serial device — only one
 process can use it at a time. To control GPIO while a PTY bridge is
 running, use signals (see below) or combinable flags.
 
+Initial setup:
+  git submodule update --init
+  pip install -r BusPirate-BPIO2-flatbuffer-interface/python/requirements.txt
+
 Wiring:
   BP5 IO3      --> EC VCC1_RST          (reset, active low)
   BP5 IO4 (TX) --> EC CR_SIN1           (UART RX)

@@ -14,6 +14,10 @@ Here's a short list:
 * PD SWD
 * SOC SPI Flash (BIOS)
 
+### Scripts
+
+See [./scripts](./scripts) folder for scripts to capture logs, flash EC, ...
+
 ## CCD (Closed Case Debug)
 
 EC & CPU UARTs can be accessed without opening the DUT (Device Under Test,
