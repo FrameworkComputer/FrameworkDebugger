@@ -367,7 +367,24 @@ configured in the bios, the default is 115200 8N1.
 Normal boot keys like F2 and F12 should also work to interrupt the boot process.
 
 
-## Dependencies
+## Scripts
 
-Note that on Fedora installing libftdi is not enough to satisfy the library dependencies
-One has to install libftdi-devel
+See [./scripts](./scripts) folder for scripts to capture logs, flash EC, ...
+
+## Buspirate
+
+A convenient tool for accessing EC and SOC UART is using the [Buspirate 5](https://buspirate.com/).
+
+To control it, use `./scripts/buspirate_ctrl.py`.
+
+Pre-requisites:
+
+- Clone submodules
+- Python3
+- libftdi library and headers
+
+```
+git submodule update --init
+sudo dnf install libfdti-devel
+pip install -r BusPirate-BPIO2-flatbuffer-interface/python/requirements.txt
+```
