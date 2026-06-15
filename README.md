@@ -302,14 +302,20 @@ console with no other graphics or networking running.
 
 #### Hardware Support
 
-| Codename  | Type-C Port  | Commandline parameter     | Function | Flipped? |
-|-----------|--------------|---------------------------|----------|----------|
-| Dogwood   | Top Back     | `console=ttyS4,115200`    | Full TTY | No       |
-| Tulip     | Middle Right | `console=ttyS4,115200`    | Full TTY | Yes      |
-| Marigold  | Front Right  | `console=ttyS4,115200`    | Full TTY | No       |
-| Lilac     | Back Left    | `console=ttyS4,115200`    | Full TTY | No       |
-| Sakura    | Front Right  | `console=ttyS0,115200n8`  | Full TTY | No       |
-| Sunflower | Front Right  | `console=uart,0xfe03e000` | Log only | No       |
+| Codename  | Type-C Port  | Commandline parameter     | Function | Flipped? | BIOS Ver |
+|-----------|--------------|---------------------------|----------|----------|----------|
+| Dogwood   | Top Back     | `console=ttyS4,115200`    | Full TTY | No       | 3.00+    |
+| Lotus     | Middle Right |                           |          |          | N/A      |
+| Tulip     | Middle Right | `console=ttyS4,115200`    | Full TTY | Yes      | 3.00+    |
+| Lilac     | Back Left    | `console=ttyS4,115200`    | Full TTY | No       | 3.00+    |
+| Azalea    | Front Right  |                           |          |          | N/A      |
+| TGL       | N/A          |                           |          |          |          |
+| ADL/Iris  | Back Left    | `console=ttyS0,115200n8`  |          |          | N/A      |
+| Marigold  | Front Right  | `console=ttyS0,115200n8`  |          | No       | N/A      |
+| Sakura    | Front Right  | `console=ttyS0,115200n8`  | Full TTY | No       | 3.00+    |
+| Sunflower | Front Right  | `console=uart,0xfe03e000` | Log only | No       | 3.00+    |
+
+ADL, Iris, Azalea, Lotus, Marigold have support in hardware but the BIOS does not expose it to the OS.
 
 ### BIOS
 
