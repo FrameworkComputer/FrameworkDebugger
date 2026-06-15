@@ -341,9 +341,10 @@ console with no other graphics or networking running.
 |-----------|--------------|---------------------------|----------|----------|
 | Dogwood   | Top Back     | `console=ttyS4,115200`    | Full TTY | No       |
 | Tulip     | Middle Right | `console=ttyS4,115200`    | Full TTY | Yes      |
-| Lilac     | Upper Left   | `console=ttyS4,115200`    | Full TTY | No       |
-| Sunflower | Lower Right  | `console=uart,0xfe03e000` | Log only | No       |
-| Sakura    | Lower Right  | `console=ttyS0,115200n8`  | Full TTY | No       |
+| Marigold  | Front Right  | `console=ttyS4,115200`    | Full TTY | No       |
+| Lilac     | Back Left    | `console=ttyS4,115200`    | Full TTY | No       |
+| Sakura    | Front Right  | `console=ttyS0,115200n8`  | Full TTY | No       |
+| Sunflower | Front Right  | `console=uart,0xfe03e000` | Log only | No       |
 
 ### BIOS
 
