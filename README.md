@@ -109,7 +109,7 @@ one needs to buy and solder it to make use of the signals.
 Pinout:
 
 | Pin | Name               | Function          |
-| ----|--------------------|-------------------|
+|-----|--------------------|-------------------|
 | 1   | `3VL_EC`           |                   |
 | 2   | `UART_0_CRXD_DTXD` | CPU UART RX       |
 | 3   | `EC_JTAG_TMS`      | EC JTAG TMS       |
@@ -120,6 +120,41 @@ Pinout:
 | 8   | `UART_0_CTXD_DRXD` | CPU UART TX       |
 | 9   | `EC_RST#`          | EC Reset          |
 | 10  | `GND`              | Ground            |
+
+#### TGL JECDB and JSWDB
+
+TigerLake (11th Gen Intel Core) has a slightly different pinout on JECDB:
+
+| Pin | Name               | Function          |
+|-----|--------------------|-------------------|
+| 1   | `3VL_EC`           |                   |
+| 2   | `EC_JTAG_TDI`      | EC JTAG TDI       |
+| 3   | `EC_JTAG_TMS`      | EC JTAG TMS       |
+| 4   | `EC_JTAG_TCK`      | EC JTAG/SWD Clock |
+| 5   | `EC_JTAG_TDO`      | EC JTAG/SWD Data  |
+| 6   | `ECTX_DRX`         | EC UART TX        |
+| 7   | `ECRX_DTX`         | EC UART RX        |
+| 8   | `UART_0_CTXD_DRXD` | CPU UART TX       |
+| 9   | `GPIO170_STRAP`    |                   |
+| 10  | `GND`              | Ground            |
+
+Because TGL didn't have UART on JECDB, it also had `JSWDB`, which ADL/RPL(Iris)
+carried forward, but eventually got removed because it was redundant:
+
+| Pin | Name               | Function          |
+|-----|--------------------|-------------------|
+| 1   | NC                 |                   |
+| 2   | NC                 |                   |
+| 3   | NC                 |                   |
+| 4   | NC                 |                   |
+| 5   | `GND`              | Ground            |
+| 6   | NC                 |                   |
+| 7   | NC                 |                   |
+| 8   | `EC_UART0_RX`      | EC UART RX        |
+| 9   | `EC_UART0_TX`      | EC UART TX        |
+| 10  | `UART_2_CTXD_DRXD` | CPU UART TX       |
+| 11  | `UART_2_CRXD_DTXD` | CPU UART RX       |
+| 12  | `GND`              | Ground            |
 
 #### Voltage References
 
