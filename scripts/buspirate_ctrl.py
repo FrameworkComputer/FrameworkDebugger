@@ -24,9 +24,12 @@ Usage:
   ./buspirate_ctrl.py --pty-bridge                     # PTY bridge (Ctrl+C to stop)
   ./buspirate_ctrl.py --pty-bridge --reset             # Bridge, then reset (captures boot log)
   ./buspirate_ctrl.py --pty-bridge --enter-flash-mode  # Bridge + enter flash mode
-  ./buspirate_ctrl.py --flash ./result/                # Full flash workflow
+  ./buspirate_ctrl.py --flash ./result/                # Full flash workflow (RO+RW)
+  ./buspirate_ctrl.py --flash ./result/ --section rw   # Flash only the RW section
+  ./buspirate_ctrl.py --flash ./result/ --section ro   # Flash only the RO section
   ./buspirate_ctrl.py --flash ./result/ --no-reset     # Flash without reboot
   ./buspirate_ctrl.py --flash ./result/ --log          # Flash, reset, print boot log
+  ./buspirate_ctrl.py --fmap ./result/                 # Print ec.bin FMAP layout (no hardware)
 
 Signal control (while --pty-bridge is running):
   kill -USR1 <pid>    # Toggle EC reset
@@ -43,15 +46,13 @@ import signal
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 
-import serial.tools.list_ports
-
-# Add upstream pybpio library to path
-sys.path.insert(0, str(Path(__file__).parent / "BusPirate-BPIO2-flatbuffer-interface" / "python"))
-from pybpio.bpio_client import BPIOClient
+# NOTE: pyserial and pybpio are imported lazily inside the functions that
+# talk to hardware, so offline commands (e.g. --fmap) work without them.
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +79,8 @@ def find_bp5_binport():
     interface string "Bus Pirate BIN". Falls back to sorted port
     list index 1 if interface strings are unavailable.
     """
+    import serial.tools.list_ports
+
     env_port = os.environ.get("BP5_BINPORT")
     if env_port:
         return env_port
@@ -326,6 +329,11 @@ def gpio_release_all(bp):
 
 def setup_bp5(port, debug=False):
     """Open BPIO client, verify connection, enable PSU and UART."""
+    import serial
+    sys.path.insert(0, str(
+        Path(__file__).parent / "BusPirate-BPIO2-flatbuffer-interface" / "python"))
+    from pybpio.bpio_client import BPIOClient
+
     bp = BPIOClient(port, debug=debug)
 
     # Set write timeout so we don't block forever if BP5 isn't responding
@@ -378,6 +386,80 @@ def cleanup_bp5(bp):
         bp.close()
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Firmware image / flash section layout
+# ---------------------------------------------------------------------------
+
+# FMAP header: signature + ver + base + size + name + nareas
+_FMAP_HDR = struct.Struct("<8sBBQI32sH")
+# FMAP area: offset + size + name + flags
+_FMAP_AREA = struct.Struct("<II32sH")
+
+
+def parse_fmap(data):
+    """Parse the FMAP embedded in an EC image.
+
+    Returns {area_name: (offset, size)} or None if no valid FMAP found.
+    Cros/Zephyr EC images embed an FMAP describing WP_RO, EC_RW, etc.
+    """
+    idx = data.find(b"__FMAP__")
+    if idx < 0:
+        return None
+    try:
+        _, _, _, _, _, _, nareas = _FMAP_HDR.unpack_from(data, idx)
+        areas = {}
+        pos = idx + _FMAP_HDR.size
+        for _ in range(nareas):
+            off, size, name, _flags = _FMAP_AREA.unpack_from(data, pos)
+            areas[name.split(b"\x00")[0].decode("ascii", "replace")] = (off, size)
+            pos += _FMAP_AREA.size
+        return areas
+    except struct.error:
+        return None
+
+
+def print_fmap(path):
+    """Parse and print the FMAP of an EC image (a file or a dir with ec.bin)."""
+    p = Path(path)
+    if p.is_dir():
+        p = p / "ec.bin"
+    if not p.exists():
+        sys.exit(f"Error: {p} not found")
+
+    data = p.read_bytes()
+    areas = parse_fmap(data)
+    if not areas:
+        sys.exit(f"No FMAP found in {p}")
+
+    print(f"FMAP for {p} ({len(data)} bytes):")
+    print(f"  {'AREA':<22} {'OFFSET':>10} {'SIZE':>10} {'END':>10}")
+    for name, (off, size) in areas.items():
+        print(f"  {name:<22} {off:#010x} {size:#010x} {off + size:#010x}")
+
+
+def section_bounds(data, section):
+    """Return (flash_offset, length) of the requested section within data.
+
+    section is "all", "ro", or "rw". RO/RW bounds come from the image's
+    FMAP (WP_RO / EC_RW areas); if absent, fall back to a half-image split.
+    """
+    if section == "all":
+        return 0, len(data)
+
+    areas = parse_fmap(data)
+    if areas and "WP_RO" in areas and "EC_RW" in areas:
+        ro_off, ro_size = areas["WP_RO"]
+        rw_off, rw_size = areas["EC_RW"]
+    else:
+        half = len(data) // 2
+        ro_off, ro_size = 0, half
+        rw_off, rw_size = half, len(data) - half
+
+    if section == "ro":
+        return ro_off, ro_size
+    return rw_off, rw_size
 
 
 # ---------------------------------------------------------------------------
@@ -467,8 +549,13 @@ def cmd_log(bp, reset=False, debug=False):
     print("\nLog stopped.", file=sys.stderr)
 
 
-def cmd_flash(bp, firmware_dir, no_reset=False, log=False, debug=False):
-    """Full flash workflow: enter flash mode, PTY bridge, uartupdatetool, reset."""
+def cmd_flash(bp, firmware_dir, section="all", no_reset=False, log=False, debug=False):
+    """Full flash workflow: enter flash mode, PTY bridge, uartupdatetool, reset.
+
+    section selects which part of ec.bin to program: "all" (default),
+    "ro", or "rw". For "ro"/"rw" only that region is erased and written,
+    leaving the other region untouched.
+    """
     fw_dir = Path(firmware_dir)
     ec_bin = fw_dir / "ec.bin"
     monitor_bin = fw_dir / "npcx_monitor.bin"
@@ -476,7 +563,15 @@ def cmd_flash(bp, firmware_dir, no_reset=False, log=False, debug=False):
     if not ec_bin.exists() or not monitor_bin.exists():
         sys.exit(f"Error: ec.bin and/or npcx_monitor.bin not found in {fw_dir}")
 
+    # Determine which slice of the image to program.
+    image = ec_bin.read_bytes()
+    flash_off, length = section_bounds(image, section)
+    payload = image[flash_off:flash_off + length]
+
     print(f"Firmware: {ec_bin}")
+    print(f"Section:  {section} "
+          f"(flash 0x{flash_off:06x}..0x{flash_off + len(payload):06x}, "
+          f"{len(payload)} bytes)")
 
     # Enter flash mode
     print("Entering EC flash mode...")
@@ -499,12 +594,29 @@ def cmd_flash(bp, firmware_dir, no_reset=False, log=False, debug=False):
             check=True,
         )
 
-        print("Flashing ec.bin...")
-        subprocess.run(
-            [tool, "--port", port_arg, "--opr", "wr", "--auto",
-             "--addr", "0x0000", "--file", str(ec_bin)],
-            check=True,
-        )
+        if section == "all":
+            print("Flashing ec.bin...")
+            subprocess.run(
+                [tool, "--port", port_arg, "--opr", "wr", "--auto",
+                 "--addr", "0x0000", "--file", str(ec_bin)],
+                check=True,
+            )
+        else:
+            # Write only the selected region at its flash offset. uartupdatetool
+            # writes the whole --file, so hand it just the region's bytes.
+            with tempfile.NamedTemporaryFile(
+                    suffix=f"_{section}.bin", delete=False) as tf:
+                tf.write(payload)
+                slice_path = tf.name
+            try:
+                print(f"Flashing {section} section...")
+                subprocess.run(
+                    [tool, "--port", port_arg, "--opr", "wr", "--auto",
+                     "--offset", f"0x{flash_off:x}", "--file", slice_path],
+                    check=True,
+                )
+            finally:
+                os.unlink(slice_path)
 
     print("Flash complete.")
 
@@ -553,6 +665,8 @@ def main():
                        help="PTY bridge (blocks until Ctrl+C)")
     group.add_argument("--flash", metavar="DIR",
                        help="Full flash workflow with uartupdatetool")
+    group.add_argument("--fmap", metavar="PATH",
+                       help="Print the FMAP of an ec.bin (file or dir) and exit")
 
     # Combinable flags
     parser.add_argument("--reset", action="store_true",
@@ -563,8 +677,15 @@ def main():
                         help="Enter EC flash mode before primary action")
     parser.add_argument("--no-reset", action="store_true",
                         help="Skip reset after --flash")
+    parser.add_argument("--section", choices=["all", "ro", "rw"], default="all",
+                        help="Which ec.bin region to flash (default: all)")
 
     args = parser.parse_args()
+
+    # Offline command: no BP5 hardware needed.
+    if args.fmap:
+        print_fmap(args.fmap)
+        return
 
     if not (args.reset or args.reset_hold or args.pty_bridge or args.flash or args.log):
         parser.error("One of --reset, --reset-hold, --pty-bridge, --flash, or --log is required")
@@ -601,8 +722,8 @@ def main():
         elif args.reset_hold:
             cmd_reset_hold(bp)
         elif args.flash:
-            cmd_flash(bp, args.flash, no_reset=args.no_reset,
-                      log=args.log, debug=args.debug)
+            cmd_flash(bp, args.flash, section=args.section,
+                      no_reset=args.no_reset, log=args.log, debug=args.debug)
         elif args.log:
             cmd_log(bp, reset=args.reset, debug=args.debug)
         elif args.reset:
