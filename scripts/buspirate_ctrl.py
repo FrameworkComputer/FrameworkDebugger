@@ -29,6 +29,7 @@ Usage:
   ./buspirate_ctrl.py --flash ./result/ --section ro   # Flash only the RO section
   ./buspirate_ctrl.py --flash ./result/ --no-reset     # Flash without reboot
   ./buspirate_ctrl.py --flash ./result/ --log          # Flash, reset, print boot log
+  ./buspirate_ctrl.py --dump flash.bin                 # Dump EC's current flash to a file
   ./buspirate_ctrl.py --fmap ./result/                 # Print ec.bin FMAP layout (no hardware)
 
 Signal control (while --pty-bridge is running):
@@ -66,6 +67,16 @@ BP5_USB_VID = 0x1209
 BP5_USB_PID = 0x7331
 
 PTY_OVERFLOW_MAXLEN = 1024 * 1024  # 1MB max buffered data
+
+SCRIPT_DIR = Path(__file__).parent.resolve()
+UARTUPDATETOOL = str(SCRIPT_DIR / "uartupdatetool")
+# npcx_monitor.bin is the flash-service stub loaded into EC SRAM. It is
+# chip-level (npcx9), identical across boards, so a copy is bundled here
+# and used when a firmware dir doesn't provide one.
+BUNDLED_MONITOR = SCRIPT_DIR / "npcx_monitor.bin"
+
+# The NPCX bootrom loads the monitor to this SRAM address and executes it.
+MONITOR_LOAD_ADDR = "0x200c3020"
 
 
 # ---------------------------------------------------------------------------
@@ -121,12 +132,28 @@ class PtyBridge:
     we flush, preventing data loss.
     """
 
-    def __init__(self, bp, debug=False):
+    def __init__(self, bp, debug=False, stats=False):
         self.bp = bp
         self.debug = debug
+        self.stats = stats
         self._shutdown = threading.Event()
         self._slave_ready = threading.Event()
         self._buf = collections.deque(maxlen=PTY_OVERFLOW_MAXLEN)
+
+        # Lightweight throughput counters (see print_stats). Maintained
+        # cheaply on the hot path; _buf_bytes mirrors bytes queued in _buf.
+        self._buf_bytes = 0
+        self._s = {
+            'bpio_bytes': 0,    # bytes received from BPIO async UART
+            'bpio_chunks': 0,   # async DataResponse chunks received
+            'pty_bytes': 0,     # bytes written out to the PTY master
+            'eagain': 0,        # PTY-full events (consumer too slow)
+            'max_buf_bytes': 0,  # peak backlog queued toward the PTY
+            'max_gap_ms': 0.0,  # longest gap between async chunks
+            'max_qdepth': 0,    # peak depth of pybpio's async_queue
+        }
+        self._last_rx = None
+        self._last_report = None
 
         # Create PTY pair
         self._master_fd, self._slave_fd = os.openpty()
@@ -146,6 +173,13 @@ class PtyBridge:
         self._reader_thread.start()
         self._async_thread.start()
 
+    def _async_qsize(self):
+        """Depth of pybpio's async queue (0 if the internal API is absent)."""
+        try:
+            return self.bp._async_queue.qsize()
+        except Exception:
+            return 0
+
     def _flush_buf(self):
         """Try to flush Python buffer to PTY master."""
         while self._buf:
@@ -153,8 +187,11 @@ class PtyBridge:
             try:
                 os.write(self._master_fd, chunk)
                 self._buf.popleft()
+                self._buf_bytes -= len(chunk)
+                self._s['pty_bytes'] += len(chunk)
             except OSError as e:
                 if e.errno == errno.EAGAIN:
+                    self._s['eagain'] += 1
                     return  # Kernel buffer full, retry later
                 raise
 
@@ -163,6 +200,9 @@ class PtyBridge:
         if not data:
             return
         self._buf.append(bytes(data))
+        self._buf_bytes += len(data)
+        if self._buf_bytes > self._s['max_buf_bytes']:
+            self._s['max_buf_bytes'] = self._buf_bytes
         if self._slave_ready.is_set():
             self._flush_buf()
 
@@ -176,6 +216,26 @@ class PtyBridge:
                 pkt = self.bp.check_async_data(timeout=0.05)
                 if pkt and pkt.get('data_read'):
                     data = bytes(pkt['data_read'])
+                    if self.stats:
+                        now = time.monotonic()
+                        self._s['bpio_bytes'] += len(data)
+                        self._s['bpio_chunks'] += 1
+                        if self._last_rx is not None:
+                            gap = (now - self._last_rx) * 1000.0
+                            if gap > self._s['max_gap_ms']:
+                                self._s['max_gap_ms'] = gap
+                        self._last_rx = now
+                        qd = self._async_qsize()
+                        if qd > self._s['max_qdepth']:
+                            self._s['max_qdepth'] = qd
+                        if self._last_report is None or now - self._last_report > 2.0:
+                            self._last_report = now
+                            print(f"[dump] rx {self._s['bpio_bytes']}B "
+                                  f"in {self._s['bpio_chunks']} chunks "
+                                  f"({self._s['bpio_bytes'] / max(1, self._s['bpio_chunks']):.1f} B/chunk), "
+                                  f"buf {self._buf_bytes}B, "
+                                  f"eagain {self._s['eagain']}, "
+                                  f"asyncq {qd}", file=sys.stderr)
                     if self.debug:
                         printable = ''.join(
                             chr(b) if 0x20 <= b < 0x7f else '.'
@@ -223,9 +283,8 @@ class PtyBridge:
                                 # Wait for tio init (tcflush) to finish
                                 time.sleep(0.2)
                                 self._slave_ready.set()
-                                buflen = sum(len(c) for c in self._buf)
                                 print(f"Reader connected, flushing "
-                                      f"{buflen} buffered bytes")
+                                      f"{self._buf_bytes} buffered bytes")
                     if event & (select.POLLHUP | select.POLLERR):
                         time.sleep(0.1)
             except OSError as e:
@@ -235,6 +294,37 @@ class PtyBridge:
                 if not self._shutdown.is_set():
                     print(f"pty-reader error: {e}", file=sys.stderr)
                 return
+
+    def print_stats(self, expected=None):
+        """Print throughput counters gathered during the session.
+
+        expected is the payload size we hoped to receive from the EC; if
+        bpio_bytes falls short of it, bytes were lost at/before the BP5
+        (device or USB) rather than in our host-side bridge.
+        """
+        s = self._s
+        print("--- bridge stats ---", file=sys.stderr)
+        print(f"  bytes from BPIO (UART RX): {s['bpio_bytes']} "
+              f"in {s['bpio_chunks']} chunks", file=sys.stderr)
+        print(f"  bytes written to PTY:      {s['pty_bytes']}", file=sys.stderr)
+        print(f"  still queued in bridge:    {self._buf_bytes}", file=sys.stderr)
+        print(f"  peak bridge backlog:       {s['max_buf_bytes']} bytes",
+              file=sys.stderr)
+        print(f"  PTY-full (EAGAIN) events:  {s['eagain']}", file=sys.stderr)
+        print(f"  avg chunk size:            "
+              f"{s['bpio_bytes'] / max(1, s['bpio_chunks']):.1f} bytes",
+              file=sys.stderr)
+        print(f"  max gap between chunks:    {s['max_gap_ms']:.1f} ms",
+              file=sys.stderr)
+        print(f"  peak async-queue depth:    {s['max_qdepth']}", file=sys.stderr)
+        if expected is not None:
+            delta = s['bpio_bytes'] - expected
+            note = ("device/USB-side loss (BP5 delivered fewer bytes than the "
+                    "EC sent)" if delta < 0 else
+                    "BP5 delivered the full payload; any corruption is "
+                    "host-side (bridge/uartupdatetool timing)")
+            print(f"  vs expected {expected}: {delta:+d} bytes -> {note}",
+                  file=sys.stderr)
 
     def stop(self):
         """Shut down the bridge."""
@@ -366,7 +456,10 @@ def setup_bp5(port, debug=False):
 
     fw_maj = st.get('version_firmware_major', 0)
     fw_min = st.get('version_firmware_minor', 0)
-    print(f"Connected: FW v{fw_maj}.{fw_min}")
+    fw_hash = st.get('version_firmware_git_hash')
+    fw_date = st.get('version_firmware_date')
+    extra = f" ({fw_hash} {fw_date})" if (fw_hash or fw_date) else ""
+    print(f"Connected: FW v{fw_maj}.{fw_min}{extra}")
 
     print("Enabling PSU (3.3V for IO buffers)...")
     bp.configuration_request(psu_enable=True, psu_set_mv=3300)
@@ -558,10 +651,14 @@ def cmd_flash(bp, firmware_dir, section="all", no_reset=False, log=False, debug=
     """
     fw_dir = Path(firmware_dir)
     ec_bin = fw_dir / "ec.bin"
-    monitor_bin = fw_dir / "npcx_monitor.bin"
 
-    if not ec_bin.exists() or not monitor_bin.exists():
-        sys.exit(f"Error: ec.bin and/or npcx_monitor.bin not found in {fw_dir}")
+    if not ec_bin.exists():
+        sys.exit(f"Error: ec.bin not found in {fw_dir}")
+
+    # Prefer the firmware dir's monitor; fall back to the bundled copy.
+    monitor_bin = fw_dir / "npcx_monitor.bin"
+    if not monitor_bin.exists():
+        monitor_bin = BUNDLED_MONITOR
 
     # Determine which slice of the image to program.
     image = ec_bin.read_bytes()
@@ -584,20 +681,17 @@ def cmd_flash(bp, firmware_dir, section="all", no_reset=False, log=False, debug=
         port_arg = pty_name.removeprefix("/dev/")
         print(f"PTY bridge: {pty_name}")
 
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        tool = os.path.join(script_dir, "uartupdatetool")
-
         print("Flashing monitor...")
         subprocess.run(
-            [tool, "--port", port_arg, "--opr", "wr",
-             "--addr", "0x200c3020", "--file", str(monitor_bin)],
+            [UARTUPDATETOOL, "--port", port_arg, "--opr", "wr",
+             "--addr", MONITOR_LOAD_ADDR, "--file", str(monitor_bin)],
             check=True,
         )
 
         if section == "all":
             print("Flashing ec.bin...")
             subprocess.run(
-                [tool, "--port", port_arg, "--opr", "wr", "--auto",
+                [UARTUPDATETOOL, "--port", port_arg, "--opr", "wr", "--auto",
                  "--addr", "0x0000", "--file", str(ec_bin)],
                 check=True,
             )
@@ -611,7 +705,7 @@ def cmd_flash(bp, firmware_dir, section="all", no_reset=False, log=False, debug=
             try:
                 print(f"Flashing {section} section...")
                 subprocess.run(
-                    [tool, "--port", port_arg, "--opr", "wr", "--auto",
+                    [UARTUPDATETOOL, "--port", port_arg, "--opr", "wr", "--auto",
                      "--offset", f"0x{flash_off:x}", "--file", slice_path],
                     check=True,
                 )
@@ -644,6 +738,58 @@ def cmd_flash(bp, firmware_dir, section="all", no_reset=False, log=False, debug=
         print("Done.")
 
 
+def cmd_dump(bp, out_file, monitor=None, no_reset=False, debug=False):
+    """Dump the EC's current flash contents to a file.
+
+    Reading flash needs npcx_monitor.bin loaded into SRAM first, same as
+    writing. Uses the bundled monitor unless one is given.
+    """
+    monitor_bin = Path(monitor) if monitor else BUNDLED_MONITOR
+    if monitor_bin.is_dir():
+        monitor_bin = monitor_bin / "npcx_monitor.bin"
+    if not monitor_bin.exists():
+        sys.exit(f"Error: npcx_monitor.bin not found at {monitor_bin}")
+    out = Path(out_file)
+
+    print(f"Monitor: {monitor_bin}")
+    print(f"Output:  {out}")
+
+    # Enter flash mode
+    print("Entering EC flash mode...")
+    gpio_enter_flash_mode(bp, debug=debug)
+    time.sleep(0.5)
+
+    with PtyBridge(bp, debug=debug, stats=True) as bridge:
+        port_arg = bridge.pty_path.removeprefix("/dev/")
+        print(f"PTY bridge: {bridge.pty_path}")
+
+        print("Flashing monitor...")
+        subprocess.run(
+            [UARTUPDATETOOL, "--port", port_arg, "--opr", "wr",
+             "--addr", MONITOR_LOAD_ADDR, "--file", str(monitor_bin)],
+            check=True,
+        )
+
+        print("Reading flash (this can take a while at 115200)...")
+        rc = subprocess.run(
+            [UARTUPDATETOOL, "--port", port_arg, "--read-flash",
+             "--file", str(out)],
+        ).returncode
+
+        out_size = out.stat().st_size if out.exists() else None
+        bridge.print_stats(expected=out_size)
+
+    if rc != 0:
+        print(f"WARNING: uartupdatetool exited {rc}; dump may be incomplete.",
+              file=sys.stderr)
+    print(f"Flash dumped to {out} ({out.stat().st_size} bytes)")
+
+    if not no_reset:
+        print("Rebooting EC...")
+        gpio_reset(bp)
+    print("Done.")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -665,6 +811,8 @@ def main():
                        help="PTY bridge (blocks until Ctrl+C)")
     group.add_argument("--flash", metavar="DIR",
                        help="Full flash workflow with uartupdatetool")
+    group.add_argument("--dump", metavar="OUTFILE",
+                       help="Dump the EC's current flash to OUTFILE")
     group.add_argument("--fmap", metavar="PATH",
                        help="Print the FMAP of an ec.bin (file or dir) and exit")
 
@@ -676,9 +824,11 @@ def main():
     parser.add_argument("--enter-flash-mode", action="store_true",
                         help="Enter EC flash mode before primary action")
     parser.add_argument("--no-reset", action="store_true",
-                        help="Skip reset after --flash")
+                        help="Skip reset after --flash/--dump")
     parser.add_argument("--section", choices=["all", "ro", "rw"], default="all",
                         help="Which ec.bin region to flash (default: all)")
+    parser.add_argument("--monitor", metavar="PATH", default=None,
+                        help="npcx_monitor.bin file or dir (default: bundled copy)")
 
     args = parser.parse_args()
 
@@ -687,8 +837,10 @@ def main():
         print_fmap(args.fmap)
         return
 
-    if not (args.reset or args.reset_hold or args.pty_bridge or args.flash or args.log):
-        parser.error("One of --reset, --reset-hold, --pty-bridge, --flash, or --log is required")
+    if not (args.reset or args.reset_hold or args.pty_bridge or args.flash
+            or args.dump or args.log):
+        parser.error("One of --reset, --reset-hold, --pty-bridge, --flash, "
+                     "--dump, or --log is required")
 
     # Find port
     binmode_port = args.port or find_bp5_binport()
@@ -724,6 +876,9 @@ def main():
         elif args.flash:
             cmd_flash(bp, args.flash, section=args.section,
                       no_reset=args.no_reset, log=args.log, debug=args.debug)
+        elif args.dump:
+            cmd_dump(bp, args.dump, monitor=args.monitor,
+                     no_reset=args.no_reset, debug=args.debug)
         elif args.log:
             cmd_log(bp, reset=args.reset, debug=args.debug)
         elif args.reset:
