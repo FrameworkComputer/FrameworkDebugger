@@ -24,7 +24,8 @@ Usage:
   ./buspirate_ctrl.py --pty-bridge                     # PTY bridge (Ctrl+C to stop)
   ./buspirate_ctrl.py --pty-bridge --reset             # Bridge, then reset (captures boot log)
   ./buspirate_ctrl.py --pty-bridge --enter-flash-mode  # Bridge + enter flash mode
-  ./buspirate_ctrl.py --flash ./result/                # Full flash workflow
+  ./buspirate_ctrl.py --flash ./result/                # Full flash workflow (build dir)
+  ./buspirate_ctrl.py --flash ~/Downloads/ec.bin       # Flash single ec.bin (monitor from script dir)
   ./buspirate_ctrl.py --flash ./result/ --no-reset     # Flash without reboot
   ./buspirate_ctrl.py --flash ./result/ --log          # Flash, reset, print boot log
 
@@ -467,14 +468,26 @@ def cmd_log(bp, reset=False, debug=False):
     print("\nLog stopped.", file=sys.stderr)
 
 
-def cmd_flash(bp, firmware_dir, no_reset=False, log=False, debug=False):
-    """Full flash workflow: enter flash mode, PTY bridge, uartupdatetool, reset."""
-    fw_dir = Path(firmware_dir)
-    ec_bin = fw_dir / "ec.bin"
-    monitor_bin = fw_dir / "npcx_monitor.bin"
+def cmd_flash(bp, firmware_path, no_reset=False, log=False, debug=False):
+    """Full flash workflow: enter flash mode, PTY bridge, uartupdatetool, reset.
 
-    if not ec_bin.exists() or not monitor_bin.exists():
-        sys.exit(f"Error: ec.bin and/or npcx_monitor.bin not found in {fw_dir}")
+    firmware_path may be a build directory (containing ec.bin and
+    npcx_monitor.bin) or a single ec.bin file, in which case
+    npcx_monitor.bin is taken from this script's directory.
+    """
+    fw_path = Path(firmware_path).expanduser()
+    if fw_path.is_dir():
+        ec_bin = fw_path / "ec.bin"
+        monitor_bin = fw_path / "npcx_monitor.bin"
+        if not ec_bin.exists() or not monitor_bin.exists():
+            sys.exit(f"Error: ec.bin and/or npcx_monitor.bin not found in {fw_path}")
+    else:
+        ec_bin = fw_path
+        monitor_bin = Path(__file__).resolve().parent / "npcx_monitor.bin"
+        if not ec_bin.exists():
+            sys.exit(f"Error: {ec_bin} not found")
+        if not monitor_bin.exists():
+            sys.exit(f"Error: npcx_monitor.bin not found in {monitor_bin.parent}")
 
     print(f"Firmware: {ec_bin}")
 
@@ -551,8 +564,10 @@ def main():
                        help="Hold EC in reset (RST low)")
     group.add_argument("--pty-bridge", action="store_true",
                        help="PTY bridge (blocks until Ctrl+C)")
-    group.add_argument("--flash", metavar="DIR",
-                       help="Full flash workflow with uartupdatetool")
+    group.add_argument("--flash", metavar="PATH",
+                       help="Full flash workflow with uartupdatetool. "
+                            "PATH is a build dir with ec.bin + npcx_monitor.bin, "
+                            "or a single ec.bin file (monitor taken from script dir)")
 
     # Combinable flags
     parser.add_argument("--reset", action="store_true",
