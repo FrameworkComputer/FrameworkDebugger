@@ -29,6 +29,10 @@ Usage:
   ./buspirate_ctrl.py --flash ./result/ --no-reset     # Flash without reboot
   ./buspirate_ctrl.py --flash ./result/ --log          # Flash, reset, print boot log
 
+Bus Pirate itself (not the EC):
+  ./buspirate_ctrl.py --buspirate-reset                # Reboot the BP5
+  ./buspirate_ctrl.py --buspirate-bootloader           # Reboot BP5 into RP2 bootloader
+
 Signal control (while --pty-bridge is running):
   kill -USR1 <pid>    # Toggle EC reset
   kill -USR2 <pid>    # Enter EC flash mode
@@ -36,8 +40,10 @@ Signal control (while --pty-bridge is running):
 
 import argparse
 import collections
+import contextlib
 import errno
 import fcntl
+import io
 import os
 import select
 import signal
@@ -325,8 +331,12 @@ def gpio_release_all(bp):
 # BP5 lifecycle
 # ---------------------------------------------------------------------------
 
-def setup_bp5(port, debug=False):
-    """Open BPIO client, verify connection, enable PSU and UART."""
+def setup_bp5(port, debug=False, configure=True):
+    """Open BPIO client, verify connection, and (optionally) enable PSU and UART.
+
+    configure=False stops after the version handshake — used by the
+    --buspirate-* commands, which only reboot the BP5.
+    """
     bp = BPIOClient(port, debug=debug)
 
     # Set write timeout so we don't block forever if BP5 isn't responding
@@ -360,6 +370,9 @@ def setup_bp5(port, debug=False):
     fw_maj = st.get('version_firmware_major', 0)
     fw_min = st.get('version_firmware_minor', 0)
     print(f"Connected: FW v{fw_maj}.{fw_min}")
+
+    if not configure:
+        return bp
 
     print("Enabling PSU (3.3V for IO buffers)...")
     bp.configuration_request(psu_enable=True, psu_set_mv=3300)
@@ -397,6 +410,40 @@ def cmd_reset_hold(bp):
     print("Holding EC in reset (RST low)...")
     gpio_reset_hold(bp)
     print("EC held in reset. Run --reset to release.")
+
+
+def bpio_fire_and_forget(bp, **kwargs):
+    """Send a configuration request the BP5 will never answer.
+
+    hardware_reset / hardware_bootloader take the MCU down inside the
+    request handler, before the ConfigurationResponse is built, so the
+    USB device just disappears instead of acking. Shorten the timeout
+    and swallow pybpio's "Timeout waiting for response" complaint.
+    """
+    prev_timeout = bp.timeout
+    bp.timeout = 0.5
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            bp.configuration_request(**kwargs)
+    except Exception:
+        pass  # Device dropped off the bus mid-write — expected
+    finally:
+        bp.timeout = prev_timeout
+
+
+def cmd_buspirate_reset(bp):
+    """Hardware reset the Bus Pirate itself (not the EC)."""
+    print("Resetting Bus Pirate...")
+    bpio_fire_and_forget(bp, hardware_reset=True)
+    print("Reset sent. The BP5 will re-enumerate over USB in a few seconds.")
+
+
+def cmd_buspirate_bootloader(bp):
+    """Reboot the Bus Pirate into the RP2 UF2 bootloader."""
+    print("Rebooting Bus Pirate into bootloader...")
+    bpio_fire_and_forget(bp, hardware_bootloader=True)
+    print("Bootloader entered. The BP5 should appear as an RPI-RP2 mass\n"
+          "storage device; copy the .uf2 firmware onto it to update.")
 
 
 def cmd_pty_bridge(bp, debug=False, reset_after_start=False):
@@ -568,6 +615,10 @@ def main():
                        help="Full flash workflow with uartupdatetool. "
                             "PATH is a build dir with ec.bin + npcx_monitor.bin, "
                             "or a single ec.bin file (monitor taken from script dir)")
+    group.add_argument("--buspirate-reset", action="store_true",
+                       help="Hardware reset the Bus Pirate itself (not the EC)")
+    group.add_argument("--buspirate-bootloader", action="store_true",
+                       help="Reboot the Bus Pirate into its UF2 bootloader")
 
     # Combinable flags
     parser.add_argument("--reset", action="store_true",
@@ -581,8 +632,17 @@ def main():
 
     args = parser.parse_args()
 
-    if not (args.reset or args.reset_hold or args.pty_bridge or args.flash or args.log):
-        parser.error("One of --reset, --reset-hold, --pty-bridge, --flash, or --log is required")
+    # These reboot the BP5 itself, so nothing else can run afterwards
+    bp_reboot = args.buspirate_reset or args.buspirate_bootloader
+
+    if not (args.reset or args.reset_hold or args.pty_bridge or args.flash
+            or args.log or bp_reboot):
+        parser.error("One of --reset, --reset-hold, --pty-bridge, --flash, --log, "
+                     "--buspirate-reset, or --buspirate-bootloader is required")
+
+    if bp_reboot and (args.reset or args.log or args.enter_flash_mode):
+        parser.error("--buspirate-reset/--buspirate-bootloader cannot be combined "
+                     "with --reset, --log, or --enter-flash-mode")
 
     # Find port
     binmode_port = args.port or find_bp5_binport()
@@ -593,7 +653,7 @@ def main():
     print(f"BP5 binmode: {binmode_port}")
 
     # Setup
-    bp = setup_bp5(binmode_port, debug=args.debug)
+    bp = setup_bp5(binmode_port, debug=args.debug, configure=not bp_reboot)
 
     # Install signal handler for clean shutdown
     original_sigint = signal.getsignal(signal.SIGINT)
@@ -605,6 +665,14 @@ def main():
     signal.signal(signal.SIGINT, sigint_handler)
 
     try:
+        # BP5 self-reboot: nothing else applies, the device goes away
+        if args.buspirate_reset:
+            cmd_buspirate_reset(bp)
+            return
+        if args.buspirate_bootloader:
+            cmd_buspirate_bootloader(bp)
+            return
+
         # Optional: enter flash mode before primary action
         if args.enter_flash_mode:
             print("Entering EC flash mode...")
@@ -625,8 +693,15 @@ def main():
     except KeyboardInterrupt:
         print("\nInterrupted.")
     finally:
-        gpio_release_all(bp)
-        cleanup_bp5(bp)
+        if bp_reboot:
+            # Device is already gone — just drop the port
+            try:
+                bp.close()
+            except Exception:
+                pass
+        else:
+            gpio_release_all(bp)
+            cleanup_bp5(bp)
 
 
 if __name__ == "__main__":
