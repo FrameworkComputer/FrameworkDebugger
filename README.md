@@ -365,3 +365,18 @@ UART console. The uart settings of the serial monitor match the settings
 configured in the bios, the default is 115200 8N1.
 
 Normal boot keys like F2 and F12 should also work to interrupt the boot process.
+
+## BIOS and EC Crisis Recovery
+
+| Codename  | BIOS Ver | Trigger            |
+|-----------|----------|--------------------|
+| Dogwood   | 3.00+    | EC console         |
+| Lotus     |          |                    |
+| Tulip     |          |                    |
+| Lilac     |          |                    |
+| Azalea    |          |                    |
+| TGL       |          |                    |
+| ADL/Iris  |          |                    |
+| Marigold  |          |                    |
+| Sakura    |          |                    |
+| Sunflower | 3.00+    | ESC + Powerbutton  |
