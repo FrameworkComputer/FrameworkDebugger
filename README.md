@@ -365,3 +365,9 @@ UART console. The uart settings of the serial monitor match the settings
 configured in the bios, the default is 115200 8N1.
 
 Normal boot keys like F2 and F12 should also work to interrupt the boot process.
+
+
+## Dependencies
+
+Note that on Fedora installing libftdi is not enough to satisfy the library dependencies
+One has to install libftdi-devel
