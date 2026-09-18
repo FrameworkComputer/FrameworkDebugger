@@ -134,11 +134,11 @@ TigerLake (11th Gen Intel Core) has a slightly different pinout on JECDB:
 | 5   | `EC_JTAG_TDO`      | EC JTAG/SWD Data  |
 | 6   | `ECTX_DRX`         | EC UART TX        |
 | 7   | `ECRX_DTX`         | EC UART RX        |
-| 8   | `UART_0_CTXD_DRXD` | CPU UART TX       |
-| 9   | `GPIO170_STRAP`    |                   |
+| 8   | `GPIO170_STRAP`    |                   |
+| 9   | `nRESETI_R`        |                   |
 | 10  | `GND`              | Ground            |
 
-Because TGL didn't have UART on JECDB, it also had `JSWDB`, which ADL/RPL(Iris)
+Because TGL didn't have SOC UART on JECDB, it also had `JSWDB`, which ADL/RPL(Iris)
 carried forward, but eventually got removed because it was redundant:
 
 | Pin | Name               | Function          |
