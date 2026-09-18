@@ -377,14 +377,34 @@ A convenient tool for accessing EC and SOC UART is using the [Buspirate 5](https
 
 To control it, use `./scripts/buspirate_ctrl.py`.
 
-Pre-requisites:
-
-- Clone submodules
-- Python3
-- libftdi library and headers
+### First time setup
 
 ```
+# Clone the submodules
 git submodule update --init
+
+# Install libftdi library and header (Example for Fedora)
 sudo dnf install libfdti-devel
+
+# Suggested to use venv
+# Create the venv
+python3 -m venv .venv
+# Enter the venv
+source .venv/bin/activate
+
+# Install python dependencies
 pip install -r BusPirate-BPIO2-flatbuffer-interface/python/requirements.txt
+
+# Add yourself to the dialout group to avoid sudo (Need to log in again)
+sudo usermod -a -G dialout $(whoami)
+```
+
+### Usage
+
+```
+# Enter venv (if created above)
+source .venv/bin/activate
+
+# Example: Reset the EC and print the log
+./buspirate_ctrl.py --reset --log
 ```
