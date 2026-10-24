@@ -14,6 +14,28 @@ Here's a short list:
 * PD SWD
 * SOC SPI Flash (BIOS)
 
+## Codenames
+
+During development we use codenames for the projects. They are not used in any
+marketing material or official communication, but they still show up in code
+projects.
+
+| System    | CPU                       | Framework codename | Chipset Codename  |
+|-----------|---------------------------|--------------------|-------------------|
+| Laptop 12 | 13th Gen Intel Core       | sunflower          | Raptor Lake       |
+| Laptop 12 | Intel Core Series 3       | dahlia             | Wildcat Lake      |
+| Laptop 13 | 11th Gen Intel Core       | hx20               | Tiger Lake        |
+| Laptop 13 | 12th Gen Intel Core       | hx30               | Alder Lake        |
+| Laptop 13 | 13th Gen Intel Core       | hx30               | Raptor Lake       |
+| Laptop 13 | AMD Ryzen 7000 Series     | azalea             | Phoenix           |
+| Laptop 13 | Intel Core Ultra Series 1 | marigold           | Meteore Lake      |
+| Laptop 13 | AMD Ryzen AI 300          | lilac              | Strix/Krackan     |
+| Laptop 13 | Intel Core Ultra Series 3 | sakura             | Panther Lake      |
+| Laptop 16 | AMD Ryzen 7000 Series     | lotus              | Phoenix           |
+| Laptop 16 | AMD Ryzen AI 300          | tulip              | Strix/Krackan     |
+| Desktop   | AMD Ryzen AI Max 300      | dogwood            | Strix Halo        |
+| Desktop   | AMD Ryzen AI Max 400      | yucca              | Gorgon Halo       |
+
 ## CCD (Closed Case Debug)
 
 EC & CPU UARTs can be accessed without opening the DUT (Device Under Test,
