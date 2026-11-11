@@ -111,6 +111,42 @@ def find_bp5_binport():
     return None
 
 
+def find_port_users(port):
+    """Return [(pid, name)] of other processes holding `port` open.
+
+    Scans /proc/*/fd; only sees processes we're allowed to inspect
+    (i.e. our own user's, or all of them as root).
+    """
+    try:
+        target = os.stat(port).st_rdev
+    except OSError:
+        return []
+    users = []
+    me = os.getpid()
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        if int(pid) == me:
+            continue
+        fd_dir = f"/proc/{pid}/fd"
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                st = os.stat(f"{fd_dir}/{fd}")
+            except OSError:
+                continue
+            if st.st_rdev == target and (st.st_mode & 0o170000) == 0o020000:
+                try:
+                    with open(f"/proc/{pid}/comm") as f:
+                        name = f.read().strip()
+                except OSError:
+                    name = "?"
+                users.append((int(pid), name))
+                break
+    return users
+
+
 # ---------------------------------------------------------------------------
 # PTY Bridge
 # ---------------------------------------------------------------------------
@@ -656,6 +692,12 @@ def main():
                  "Set BP5_BINPORT or use --port")
 
     print(f"BP5 binmode: {binmode_port}")
+
+    users = find_port_users(binmode_port)
+    if users:
+        procs = ", ".join(f"{name} (pid {pid})" for pid, name in users)
+        sys.exit(f"Error: {binmode_port} is already open by: {procs}\n"
+                 "Close it first (only one process can use the BPIO port).")
 
     # Setup
     bp = setup_bp5(binmode_port, debug=args.debug, configure=not bp_reboot)
