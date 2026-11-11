@@ -64,6 +64,7 @@ IO_FLPRG = 7
 
 BP5_USB_VID = 0x1209
 BP5_USB_PID = 0x7331
+BP5_DEFAULT_BINPORT = "/dev/serial/by-id/usb-Bus_Pirate_Bus_Pirate_5_5buspirate-if02"
 
 PTY_OVERFLOW_MAXLEN = 1024 * 1024  # 1MB max buffered data
 
@@ -75,13 +76,17 @@ PTY_OVERFLOW_MAXLEN = 1024 * 1024  # 1MB max buffered data
 def find_bp5_binport():
     """Find Bus Pirate 5 binmode (CDC 1) serial port.
 
-    Matches USB VID:PID 1209:7331, then selects the port with
+    Uses BP5_BINPORT if set, else BP5_DEFAULT_BINPORT if it exists.
+    Otherwise matches USB VID:PID 1209:7331, then selects the port with
     interface string "Bus Pirate BIN". Falls back to sorted port
     list index 1 if interface strings are unavailable.
     """
     env_port = os.environ.get("BP5_BINPORT")
     if env_port:
         return env_port
+
+    if os.path.exists(BP5_DEFAULT_BINPORT):
+        return BP5_DEFAULT_BINPORT
 
     bp5_ports = [p for p in serial.tools.list_ports.comports()
                  if p.vid == BP5_USB_VID and p.pid == BP5_USB_PID]
