@@ -170,6 +170,17 @@ def image_version(ec_bin):
     return m.group(1).decode() if m else None
 
 
+_PROGRESS_RE = re.compile(r"^\[\d+%\] \d+/\d+$")
+
+
+def _drop_progress(text):
+    """Drop uartupdatetool's per-block progress lines, keeping the last."""
+    lines = text.splitlines()
+    progress = [i for i, ln in enumerate(lines) if _PROGRESS_RE.match(ln)]
+    drop = set(progress[:-1])
+    return "".join(ln + "\n" for i, ln in enumerate(lines) if i not in drop)
+
+
 def resolve_firmware(path):
     """Return (ec_bin, monitor_bin) for a build dir or a single ec.bin.
 
@@ -604,7 +615,7 @@ class EcTarget:
                         f"uartupdatetool ({name}) timed out after "
                         f"{timeout}s:\n{e.stdout or ''}{e.stderr or ''}")
                 if self._log:
-                    self._log.write(r.stdout + r.stderr)
+                    self._log.write(_drop_progress(r.stdout + r.stderr))
                 if r.returncode != 0:
                     raise FlashError(
                         f"uartupdatetool ({name}) failed with exit code "
