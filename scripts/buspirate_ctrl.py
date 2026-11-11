@@ -246,6 +246,13 @@ def main():
         parser.error("--log/--expect/--send cannot be combined with "
                      "--pty-bridge or --reset-hold")
 
+    # Background jobs inherit SIGINT as ignored; make both SIGINT and
+    # SIGTERM raise KeyboardInterrupt so we always tear down cleanly.
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGINT, interrupt)
+    signal.signal(signal.SIGTERM, interrupt)
+
     stream = _Stream()
     try:
         ec = EcTarget(args.port, logfile=args.logfile, configure=not bp_reboot,
