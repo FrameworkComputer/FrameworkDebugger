@@ -330,11 +330,16 @@ class EcTarget:
             target=self._reader_loop, daemon=True, name="ec-console")
         self._reader.start()
 
-    def close(self):
-        """Release GPIOs, disable PSU, return to HiZ and close the port."""
+    def close(self, teardown=True):
+        """Release GPIOs, disable PSU, return to HiZ and close the port.
+
+        teardown=False leaves the BP5 as it is (PSU on, pins driven),
+        e.g. to keep the EC held in reset after the process exits.
+        """
         self._shutdown.set()
         if self._reader:
             self._reader.join(timeout=2)
+        if self._reader and teardown:
             try:
                 self.release_all()
                 self._config(psu_disable=True)
