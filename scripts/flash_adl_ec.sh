@@ -1,6 +1,6 @@
 #!/bin/bash
-CTRLUART=/dev/ttyACM0
-FLASHUART=/dev/ttyACM2
+CTRLUART=/dev/serial/by-id/usb-Framework_CMSIS-DAP_9576640-if00
+FLASHUART=/dev/serial/by-id/usb-Framework_CMSIS-DAP_9576640-if04
 if [ $# -eq 0 ]; then
   #no argument, try default location 
   FLASH_SRC=~/ec/build/hx30/ec.bin
