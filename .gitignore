@@ -5,3 +5,6 @@
 .vscode/ipch
 # PlatformIO installer
 get-platformio.py
+
+# Python scripts and host-only tests
+__pycache__/

@@ -14,3 +14,13 @@ pytest -k reboot --ec-log /tmp/ec.log       # subset, custom console log
 Each test's start is marked in the console log (`### test ...`).
 New tests get an `ec` fixture (`ectarget.EcTarget`) with `boot()`,
 `expect()`, `command()`, `reset()` and `flash()`.
+
+Host-only flash/protocol tests (no serial connection or hardware required):
+
+```sh
+pytest unit_tests
+```
+
+These cover CRC/short/corrupt/delayed replies, deadlines, backup mismatches,
+exclusive output files, image geometry, and verification/program failure paths.
+The `tests/` suite above is hardware-in-the-loop and resets the connected EC.

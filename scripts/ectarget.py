@@ -26,6 +26,7 @@ import contextlib
 import errno
 import fcntl
 import io
+import hashlib
 import os
 import re
 import select
@@ -38,6 +39,8 @@ from pathlib import Path
 
 import serial
 import serial.tools.list_ports
+
+from npcx_rom import RomError, RomReader
 
 sys.path.insert(0, str(Path(__file__).resolve().parent
                        / "BusPirate-BPIO2-flatbuffer-interface" / "python"))
@@ -98,7 +101,7 @@ class ExpectTimeout(EcTargetError):
 
 
 class FlashError(EcTargetError):
-    """uartupdatetool failed or timed out."""
+    """Programming, ROM reads, backup comparison or verification failed."""
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +188,7 @@ def resolve_firmware(path):
     """Return (ec_bin, monitor_bin) for a build dir or a single ec.bin.
 
     A build dir must contain ec.bin and npcx_monitor.bin. For a single
-    file, npcx_monitor.bin is taken from this script's directory.
+    file, prefer its sibling npcx_monitor.bin, falling back to this script's directory.
     """
     path = Path(path).expanduser()
     if path.is_dir():
@@ -193,7 +196,9 @@ def resolve_firmware(path):
         monitor_bin = path / "npcx_monitor.bin"
     else:
         ec_bin = path
-        monitor_bin = SCRIPT_DIR / "npcx_monitor.bin"
+        monitor_bin = path.parent / "npcx_monitor.bin"
+        if not monitor_bin.is_file():
+            monitor_bin = SCRIPT_DIR / "npcx_monitor.bin"
     for f in (ec_bin, monitor_bin):
         if not f.is_file():
             raise FileNotFoundError(f"{f} not found")
@@ -259,7 +264,8 @@ class EcTarget:
 
     Console output is cleaned (ANSI escapes, CR and NUL removed) before
     being matched by expect()/command(). Raw bytes can be observed by
-    passing on_data, a callable receiving each raw chunk.
+    passing on_data, a callable receiving each console chunk. Binary/PTY
+    traffic is routed exclusively to its active sink, never to console hooks.
     """
 
     def __init__(self, port=None, *, baud=115200, logfile=None,
@@ -284,7 +290,9 @@ class EcTarget:
         self._cursor = 0                     # expect() position
         self._last_rx = time.monotonic()
         self._partial = b""                  # incomplete ANSI escape
-        self._sink = None                    # PTY bridge, when active
+        self._sink = None                    # exclusive raw UART sink
+        self._sink_lock = threading.RLock()
+        self.last_flash_read = None
         self._shutdown = threading.Event()
         self._reader = None
         self._log = _TimestampedLog(logfile) if logfile else None
@@ -440,18 +448,22 @@ class EcTarget:
             try:
                 pkt = self.bp.check_async_data(timeout=0.05)
             except Exception as e:  # pragma: no cover - port vanished
+                with self._sink_lock:
+                    if self._sink is not None and hasattr(self._sink, "fail"):
+                        self._sink.fail(e)
                 print(f"ec-console: {e}", file=sys.stderr)
                 return
             if not pkt or not pkt.get("data_read"):
                 continue
             data = bytes(pkt["data_read"])
-            if self.on_data:
-                self.on_data(data)
-            sink = self._sink
-            if sink is not None:
-                sink.feed(data)
-            else:
-                self._ingest(data)
+            with self._sink_lock:
+                sink = self._sink
+                if sink is not None:
+                    sink.feed(data)
+                else:
+                    if self.on_data:
+                        self.on_data(data)
+                    self._ingest(data)
 
     def _ingest(self, data):
         raw = self._partial + data
@@ -576,56 +588,176 @@ class EcTarget:
         While active, console output goes to the PTY instead of
         expect()/command(). Yields the PTY path (e.g. /dev/pts/5).
         """
-        bridge = _PtyBridge(self._uart_write, debug=self.debug)
+        with self._sink_lock:
+            if self._sink is not None:
+                raise EcTargetError("UART already has an active binary reader/bridge")
+            bridge = _PtyBridge(self._uart_write, debug=self.debug)
+            self._sink = bridge
         self.note(f"pty bridge {bridge.pty_path}")
-        self._sink = bridge
         try:
             yield bridge.pty_path
         finally:
-            self._sink = None
+            with self._sink_lock:
+                self._sink = None
             bridge.stop()
             self.note("pty bridge closed")
 
     # -- flashing ----------------------------------------------------------
 
-    def flash(self, firmware, timeout=300, tool=UARTUPDATETOOL):
-        """Flash ec.bin via the NPCX UART ISP using uartupdatetool.
+    @staticmethod
+    def _deadline(timeout):
+        if not 0 < timeout < float("inf"):
+            raise ValueError("Flash timeout must be positive and finite")
+        return time.monotonic() + timeout
 
-        `firmware` is a build dir (ec.bin + npcx_monitor.bin) or an
-        ec.bin path. Leaves the EC in flash mode; call reset()/boot()
-        afterwards to run the new image.
+    @staticmethod
+    def _remaining(deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise FlashError("NPCX flash operation timed out")
+        return remaining
+
+    def _run_updater(self, pty, name, args, deadline, tool):
+        self.note(f"uartupdatetool: {name}")
+        try:
+            result = subprocess.run(
+                [str(tool), "--port", pty.removeprefix("/dev/"), *args],
+                capture_output=True, text=True,
+                timeout=self._remaining(deadline))
+        except subprocess.TimeoutExpired as exc:
+            raise FlashError(f"uartupdatetool ({name}) timed out") from exc
+        if self._log:
+            self._log.write(_drop_progress(result.stdout + result.stderr))
+        if result.returncode:
+            raise FlashError(
+                f"uartupdatetool ({name}) failed with exit code "
+                f"{result.returncode}:\n{result.stdout}{result.stderr}")
+
+    def _load_monitor(self, monitor, deadline, tool):
+        monitor = Path(monitor)
+        if not monitor.is_file():
+            raise FileNotFoundError(monitor)
+        self._remaining(deadline)
+        with self._sink_lock:
+            if self._sink is not None:
+                raise EcTargetError("UART already has an active binary reader/bridge")
+        self.enter_flash_mode()
+        with self.pty_bridge() as pty:
+            self._run_updater(pty, "monitor",
+                              ["--opr", "wr", "--addr", MONITOR_LOAD_ADDR,
+                               "--file", str(monitor)], deadline, tool)
+
+    @contextlib.contextmanager
+    def _rom_session(self, deadline):
+        reader = RomReader(self._uart_write, deadline)
+        with self._sink_lock:
+            if self._sink is not None:
+                raise EcTargetError("UART already has an active binary reader/bridge")
+            self._sink = reader
+        try:
+            reader.sync()
+            yield reader
+        except RomError as exc:
+            raise FlashError(str(exc)) from exc
+        finally:
+            with self._sink_lock:
+                self._sink = None
+                self._partial = b""
+
+    def _read_flash(self, monitor, deadline, tool):
+        self.last_flash_read = None
+        self._load_monitor(monitor, deadline, tool)
+        with self._rom_session(deadline) as reader:
+            size = reader.flash_size()
+            data = reader.read_flash(size)
+            self.last_flash_read = {
+                "size": size, "sha256": hashlib.sha256(data).hexdigest(),
+                "retries": reader.retries,
+            }
+        self.note(f"ROM flash read: {self.last_flash_read}")
+        self._gpio(IO_FLPRG, None)
+        return data
+
+    def read_flash(self, *, monitor=SCRIPT_DIR / "npcx_monitor.bin",
+                   timeout=600, tool=UARTUPDATETOOL):
+        """Read all physical flash with chip detection and per-block CRC checks.
+
+        Resets into ROM ISP and uploads only a RAM monitor; no flash writes.
+        Leaves the EC in ISP. Call reset()/boot() afterwards. UART/PTY console
+        sinks cannot run concurrently. last_flash_read records size/hash/retries.
+        """
+        return self._read_flash(monitor, self._deadline(timeout), tool)
+
+    def backup(self, path, *, monitor=SCRIPT_DIR / "npcx_monitor.bin",
+               timeout=1200, tool=UARTUPDATETOOL):
+        """Save two matching full reads without overwriting an existing path.
+
+        A mismatch publishes no backup. The total deadline covers both reads;
+        returns size/hash and retry counts. Leaves EC in ISP, without reset.
+        """
+        path = Path(path).expanduser()
+        if path.exists():
+            raise FileExistsError(path)
+        if not path.parent.is_dir():
+            raise FileNotFoundError(path.parent)
+        deadline = self._deadline(timeout)
+        first = self._read_flash(monitor, deadline, tool)
+        first_info = dict(self.last_flash_read)
+        second = self._read_flash(monitor, deadline, tool)
+        if first != second:
+            raise FlashError("Full flash backups differ; no backup was saved")
+        # Exclusive creation also protects against a path created during reads.
+        with path.open("xb") as output:
+            output.write(first)
+            output.flush()
+            os.fsync(output.fileno())
+        report = {"size": len(first), "sha256": hashlib.sha256(first).hexdigest(),
+                  "retries": [first_info["retries"], self.last_flash_read["retries"]]}
+        self.note(f"verified backup {path}: {report}")
+        return report
+
+    @staticmethod
+    def _verify_flash(image, actual):
+        if not image or len(image) > len(actual):
+            raise FlashError("Image is empty or larger than detected physical flash")
+        if actual[:len(image)] != image:
+            offset = next(i for i, (a, b) in enumerate(zip(image, actual)) if a != b)
+            raise FlashError(f"Flash readback mismatch at offset {offset:#x}; not resetting")
+        return {"size": len(image), "flash_size": len(actual),
+                "sha256": hashlib.sha256(image).hexdigest()}
+
+    def flash(self, firmware, timeout=900, tool=UARTUPDATETOOL):
+        """Program, then independently CRC-read and compare before success.
+
+        Accept a build dir or binary (prefer its sibling monitor). Probe chip
+        geometry before programming; reject unknown chips and oversized/empty
+        images. Full images verify every byte; short images verify only their
+        programmed prefix. Back up first with backup(). Leaves EC in ISP and
+        never resets into the application, including on timeout/readback failure.
+        timeout is the total monitor/program/readback budget. Writes are not
+        retried. Returns verified size/hash; binary reads bypass the PTY.
         """
         ec_bin, monitor_bin = resolve_firmware(firmware)
-        self.enter_flash_mode()
-        time.sleep(0.5)
-        deadline = time.monotonic() + timeout
+        image = ec_bin.read_bytes()
+        if not image:
+            raise FlashError("Cannot program an empty image")
+        deadline = self._deadline(timeout)
+        self._load_monitor(monitor_bin, deadline, tool)
+        with self._rom_session(deadline) as reader:
+            size = reader.flash_size()
+        if len(image) > size:
+            raise FlashError(f"Image size {len(image)} exceeds physical flash size {size}")
         with self.pty_bridge() as pty:
-            port_arg = pty.removeprefix("/dev/")
-            steps = [
-                ("monitor", ["--opr", "wr", "--addr", MONITOR_LOAD_ADDR,
-                             "--file", str(monitor_bin)]),
-                ("ec.bin", ["--opr", "wr", "--auto", "--addr", "0x0000",
-                            "--file", str(ec_bin)]),
-            ]
-            for name, args in steps:
-                self.note(f"uartupdatetool: {name}")
-                remaining = deadline - time.monotonic()
-                try:
-                    r = subprocess.run(
-                        [str(tool), "--port", port_arg, *args],
-                        capture_output=True, text=True,
-                        timeout=max(remaining, 1))
-                except subprocess.TimeoutExpired as e:
-                    raise FlashError(
-                        f"uartupdatetool ({name}) timed out after "
-                        f"{timeout}s:\n{e.stdout or ''}{e.stderr or ''}")
-                if self._log:
-                    self._log.write(_drop_progress(r.stdout + r.stderr))
-                if r.returncode != 0:
-                    raise FlashError(
-                        f"uartupdatetool ({name}) failed with exit code "
-                        f"{r.returncode}:\n{r.stdout}{r.stderr}")
+            self._run_updater(pty, "ec.bin",
+                              ["--opr", "wr", "--auto", "--addr", "0x0000",
+                               "--file", str(ec_bin)], deadline, tool)
+        with self._rom_session(deadline) as reader:
+            actual = reader.read_flash(size)
+            report = self._verify_flash(image, actual)
+            report["retries"] = reader.retries
+        self.note(f"verified flash: {report}")
         self._gpio(IO_FLPRG, None)
+        return report
 
 
 # ---------------------------------------------------------------------------
