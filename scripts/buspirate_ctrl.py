@@ -26,7 +26,8 @@ Usage:
   ./buspirate_ctrl.py --pty-bridge                     # PTY bridge (Ctrl+C to stop)
   ./buspirate_ctrl.py --pty-bridge --reset             # Bridge, then reset (captures boot log)
   ./buspirate_ctrl.py --pty-bridge --enter-flash-mode  # Bridge + enter flash mode
-  ./buspirate_ctrl.py --flash ./result/                # Full flash workflow (build dir)
+  ./buspirate_ctrl.py --backup original-ec.bin         # Two matching full reads, then reset
+  ./buspirate_ctrl.py --flash ./result/                # Program + checked readback, then reset
   ./buspirate_ctrl.py --flash ~/Downloads/ec.bin       # Flash single ec.bin (monitor from script dir)
   ./buspirate_ctrl.py --flash ./result/ --no-reset     # Flash without reboot
   ./buspirate_ctrl.py --flash ./result/ --log          # Flash, reset, print boot log
@@ -51,6 +52,7 @@ Status messages go to stderr; stdout carries only EC output.
 import argparse
 import contextlib
 import io
+import json
 import os
 import signal
 import sys
@@ -202,7 +204,10 @@ def main():
     group.add_argument("--flash", metavar="PATH",
                        help="Full flash workflow with uartupdatetool. "
                             "PATH is a build dir with ec.bin + npcx_monitor.bin, "
-                            "or a single ec.bin file (monitor taken from script dir)")
+                            "or a single ec.bin file (prefer its sibling monitor)")
+    group.add_argument("--backup", metavar="FILE",
+                       help="Save two matching CRC-checked full flash reads; "
+                            "refuse to overwrite FILE, then reset unless --no-reset")
     group.add_argument("--buspirate-reset", action="store_true",
                        help="Hardware reset the Bus Pirate itself (not the EC)")
     group.add_argument("--buspirate-bootloader", action="store_true",
@@ -222,22 +227,26 @@ def main():
                              "repeatable")
     parser.add_argument("--timeout", type=float, metavar="SECONDS",
                         help="Timeout for --expect/--send; duration for --log")
-    parser.add_argument("--flash-timeout", type=float, default=300,
-                        metavar="SECONDS", help="Timeout for --flash (default 300)")
+    parser.add_argument("--flash-timeout", type=float, default=900,
+                        metavar="SECONDS", help="Total flash/readback timeout (default 900)")
+    parser.add_argument("--backup-timeout", type=float, default=1200,
+                        metavar="SECONDS", help="Total two-read backup timeout (default 1200)")
+    parser.add_argument("--monitor", metavar="FILE",
+                        help="RAM monitor for --backup (default: bundled npcx_monitor.bin)")
     parser.add_argument("--enter-flash-mode", action="store_true",
                         help="Enter EC flash mode before primary action")
     parser.add_argument("--no-reset", action="store_true",
-                        help="Skip reset after --flash")
+                        help="Skip reset after --flash/--backup")
 
     args = parser.parse_args()
 
     bp_reboot = args.buspirate_reset or args.buspirate_bootloader
     console = args.log or args.expect or args.send
 
-    if not (args.reset or args.reset_hold or args.pty_bridge or args.flash
+    if not (args.reset or args.reset_hold or args.pty_bridge or args.flash or args.backup
             or console or bp_reboot):
         parser.error("One of --reset, --reset-hold, --pty-bridge, --flash, --log, "
-                     "--expect, --send, --buspirate-reset, or "
+                     "--backup, --expect, --send, --buspirate-reset, or "
                      "--buspirate-bootloader is required")
     if bp_reboot and (args.reset or console or args.enter_flash_mode):
         parser.error("--buspirate-reset/--buspirate-bootloader cannot be combined "
@@ -245,6 +254,11 @@ def main():
     if (args.pty_bridge or args.reset_hold) and console:
         parser.error("--log/--expect/--send cannot be combined with "
                      "--pty-bridge or --reset-hold")
+
+    if args.monitor and not args.backup:
+        parser.error("--monitor applies only to --backup; --flash resolves its build monitor")
+    if args.flash_timeout <= 0 or args.backup_timeout <= 0:
+        parser.error("Flash/backup timeouts must be positive")
 
     # Background jobs inherit SIGINT as ignored; make both SIGINT and
     # SIGTERM raise KeyboardInterrupt so we always tear down cleanly.
@@ -292,11 +306,25 @@ def main():
                 ec.hold_reset()
                 teardown = False  # keep RST driven after we exit
                 status("EC held in reset. Run --reset to release.")
+            elif args.backup:
+                status(f"Backing up flash to {args.backup} (two checked reads)...")
+                options = {"timeout": args.backup_timeout}
+                if args.monitor:
+                    options["monitor"] = args.monitor
+                report = ec.backup(args.backup, **options)
+                status(f"Backup verified: {json.dumps(report)}")
+                reset = not args.no_reset
+                if console:
+                    rc = run_console(ec, args, stream, reset)
+                elif reset:
+                    status("Rebooting EC...")
+                    ec.reset()
             elif args.flash:
                 status(f"Flashing {args.flash}...")
                 t0 = time.monotonic()
-                ec.flash(args.flash, timeout=args.flash_timeout)
-                status(f"Flash complete in {time.monotonic() - t0:.1f}s.")
+                report = ec.flash(args.flash, timeout=args.flash_timeout)
+                status(f"Flash/readback verified in {time.monotonic() - t0:.1f}s: "
+                       f"{json.dumps(report)}")
                 reset = not args.no_reset
                 if console:
                     rc = run_console(ec, args, stream, reset)
@@ -311,10 +339,11 @@ def main():
                 status("Reset complete.")
         except KeyboardInterrupt:
             status("Interrupted.")
+            rc = 130
         except ExpectTimeout as e:
             status(f"Error: {e}")
             rc = 1
-        except (EcTargetError, FileNotFoundError) as e:
+        except (EcTargetError, OSError, ValueError) as e:
             status(f"Error: {e}")
             rc = 1
     finally:
