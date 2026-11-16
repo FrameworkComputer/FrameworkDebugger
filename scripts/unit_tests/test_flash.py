@@ -276,3 +276,31 @@ def test_cli_interruption_is_nonzero(monkeypatch):
     assert buspirate_ctrl.main() == 130
     ec.reset.assert_not_called()
     ec.close.assert_called_once()
+
+
+def test_isp_strap_break_cleared_before_uart_traffic(monkeypatch):
+    ec = object.__new__(EcTarget)
+    ec.baud = 57600
+    events = []
+    ec.note = lambda text: None
+    ec._gpio = lambda pin, value: events.append(("gpio", pin, value))
+    ec._config = lambda **kw: events.append(("config", kw))
+    ec.bp = SimpleNamespace(clear_async_queue=lambda: events.append(("clear",)))
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    ec.enter_flash_mode()
+    assert events[:4] == [("gpio", 7, 0), ("gpio", 3, 0), ("gpio", 3, None), ("gpio", 7, 1)]
+    cfg = events[4][1]
+    assert cfg["mode"] == "UART" and cfg["mode_configuration"]["speed"] == 57600
+    assert cfg["io_direction_mask"] == (1 << 3 | 1 << 7)
+    assert cfg["io_direction"] == cfg["io_value"] == cfg["io_value_mask"] == 1 << 7
+    assert events[-1] == ("clear",)
+
+
+def test_reset_biases_shared_tx_high(monkeypatch):
+    ec = object.__new__(EcTarget)
+    events = []
+    ec.note = lambda text: None
+    ec._gpio = lambda pin, value: events.append((pin, value))
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    ec.reset()
+    assert events == [(7, 1), (3, 0), (3, None)]

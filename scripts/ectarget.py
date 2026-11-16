@@ -281,6 +281,7 @@ class EcTarget:
             raise EcTargetError(f"{self.port} is already open by: {procs}")
 
         self.prompt = prompt
+        self.baud = baud
         self.debug = debug
         self.on_data = on_data
 
@@ -411,6 +412,9 @@ class EcTarget:
     def reset(self, hold=0.5):
         """Pulse EC reset low for `hold` seconds, then release it."""
         self.note("reset")
+        # Keep the shared EC TX/strap idle high through reset. The EC pad is
+        # otherwise floating while reset; buffered BPIO latches UART breaks.
+        self._gpio(IO_FLPRG, 1)
         self._gpio(IO_RST, 0)
         time.sleep(hold)
         self._gpio(IO_RST, None)
@@ -435,6 +439,15 @@ class EcTarget:
         # Drive FLPRG1 high so the resistor doesn't load the shared EC TX line
         self._gpio(IO_FLPRG, 1)
         time.sleep(0.1)
+        # The deliberate strap-low interval is a UART break, not transport
+        # corruption. Reconfigure after it to clear BPIO's latched RX fault.
+        # UART cleanup releases auxiliary pins; restore TX idle bias in the
+        # same request and explicitly keep reset released.
+        self._config(mode="UART", mode_configuration={"speed": self.baud},
+                     io_direction_mask=(1 << IO_RST) | (1 << IO_FLPRG),
+                     io_direction=1 << IO_FLPRG,
+                     io_value_mask=1 << IO_FLPRG, io_value=1 << IO_FLPRG)
+        self.bp.clear_async_queue()
 
     def release_all(self):
         """Release RST and FLPRG1 to inputs."""
