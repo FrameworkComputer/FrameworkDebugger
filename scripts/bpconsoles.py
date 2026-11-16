@@ -73,6 +73,7 @@ class UartChannel:
         self.faults = []                  # recent firmware fault strings (capped)
         self._recover_at = None           # monotonic time of a pending recovery
         self._last_recover = 0.0
+        self._backoff = None              # current recovery interval (s)
         self._last_report = (None, 0.0)   # (fault text, time) last printed
         self._suppressed = 0
         self._cond = threading.Condition()
@@ -344,13 +345,28 @@ class BusPirateConsoles:
                 except IOError as e:
                     raise ChannelError(f"channel {channel}: {e}") from e
 
+    def set_pin(self, io, value):
+        """Drive IOn low/high, or release it to an input with value=None.
+
+        The firmware refuses pins owned by an active UART channel.
+        """
+        if value is None:
+            self._config(io_direction_mask=1 << io, io_direction=0)
+        else:
+            self._config(io_direction_mask=1 << io, io_direction=1 << io,
+                         io_value_mask=1 << io, io_value=(1 << io) if value else 0)
+
     def status_request(self):
         with self._lock, self._quiet():
             return self.bp.status_request()
 
     # -- receive dispatch ----------------------------------------------------
 
-    RECOVER_INTERVAL = 1.0  # seconds between recoveries of one channel
+    # Recovery backoff per channel: quick first retry so a target reset loses
+    # little boot output, doubling while the line keeps faulting (e.g. held
+    # low while powered down), reset once data flows again.
+    RECOVER_MIN = 0.05
+    RECOVER_MAX = 1.0
 
     def _recover_due(self):
         now = time.monotonic()
@@ -362,7 +378,7 @@ class BusPirateConsoles:
                     ch.configure()
                 except EcTargetError as e:
                     print(f"{ch.name}: recovery failed: {e}", file=sys.stderr)
-                    ch._recover_at = now + self.RECOVER_INTERVAL
+                    ch._recover_at = now + self.RECOVER_MAX
 
     def _reader_loop(self):
         while not self._shutdown.is_set():
@@ -380,12 +396,15 @@ class BusPirateConsoles:
                 continue
             data = bytes(pkt.get("data_read") or b"")
             if data:
+                ch._backoff = None
                 ch._feed(data)
             if pkt.get("error"):
                 ch._fault(pkt["error"])
                 if self.auto_recover and ch._recover_at is None:
                     # Reconfiguring clears the latched fault; never spin on it.
-                    ch._recover_at = max(time.monotonic(), ch._last_recover + self.RECOVER_INTERVAL)
+                    ch._backoff = (self.RECOVER_MIN if ch._backoff is None
+                                   else min(ch._backoff * 2, self.RECOVER_MAX))
+                    ch._recover_at = max(time.monotonic(), ch._last_recover + ch._backoff)
 
     # -- lifecycle -----------------------------------------------------------
 
