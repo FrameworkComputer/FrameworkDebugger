@@ -28,7 +28,9 @@ import io
 import os
 import re
 import sys
+import termios
 import threading
+import tty
 import time
 from pathlib import Path
 
@@ -166,6 +168,10 @@ class UartChannel:
         if self._pty:
             return self._pty.pty_path
         self._pty = _PtyBridge(self._pty_write, debug=self.bus.debug)
+        # Raw mode: with the default cooked/echo line discipline, target output
+        # written to the master is echoed back and sent to the target as input.
+        # TCSANOW avoids a flush, which the bridge treats as a reader attaching.
+        tty.setraw(self._pty._slave_fd, termios.TCSANOW)
         if link:
             link = Path(link)
             if link.is_symlink():
