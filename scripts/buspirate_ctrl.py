@@ -260,12 +260,14 @@ def main():
     if args.flash_timeout <= 0 or args.backup_timeout <= 0:
         parser.error("Flash/backup timeouts must be positive")
 
-    # Background jobs inherit SIGINT as ignored; make both SIGINT and
-    # SIGTERM raise KeyboardInterrupt so we always tear down cleanly.
+    # Background jobs inherit SIGINT as ignored; make SIGINT, SIGTERM and
+    # SIGHUP (e.g. `ssh -t` session dropped) raise KeyboardInterrupt so we
+    # always tear down cleanly and release the port.
     def interrupt(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGINT, interrupt)
     signal.signal(signal.SIGTERM, interrupt)
+    signal.signal(signal.SIGHUP, interrupt)
 
     stream = _Stream()
     try:
