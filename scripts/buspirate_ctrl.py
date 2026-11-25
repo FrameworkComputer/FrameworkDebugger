@@ -193,10 +193,16 @@ class _Stream:
 
     enabled = False
 
+    def __init__(self):
+        # Bind now: EcTarget._quiet() uses redirect_stdout(), which swaps
+        # sys.stdout process-wide - including for the reader thread that
+        # calls us - so looking it up per write can hit a StringIO.
+        self._out = sys.stdout.buffer
+
     def __call__(self, data):
         if self.enabled:
-            sys.stdout.buffer.write(data)
-            sys.stdout.buffer.flush()
+            self._out.write(data)
+            self._out.flush()
 
 
 # ---------------------------------------------------------------------------
