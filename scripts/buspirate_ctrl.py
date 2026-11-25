@@ -54,6 +54,7 @@ import contextlib
 import io
 import json
 import os
+import select
 import signal
 import sys
 import time
@@ -158,12 +159,33 @@ def run_console(ec, args, stream, reset):
     if args.log and not (args.expect or args.send):
         if timeout:
             status(f"Logging EC output for {timeout}s...")
-            time.sleep(timeout)
         else:
             status("Logging EC output (Ctrl+C to stop)...")
-            while True:
-                time.sleep(1)
+        deadline = time.monotonic() + timeout if timeout else None
+        watch_stdin = not _hung_up(0)
+        while deadline is None or time.monotonic() < deadline:
+            if _hung_up(1) or (watch_stdin and _hung_up(0)):
+                # Session went away (e.g. `ssh host buspirate_ctrl.py --log`
+                # without -t, then Ctrl+C): no SIGHUP arrives, so stop here
+                # instead of holding the port forever.
+                raise KeyboardInterrupt
+            time.sleep(0.5)
     return 0
+
+
+def _hung_up(fd):
+    """True if fd is a pipe/socket whose other end has closed.
+
+    Covers both ssh flavours without a pty: OpenSSH closes our stdout pipe
+    (POLLERR), Tailscale SSH closes stdin right away (POLLHUP) but keeps
+    stdout open until something is written to it.
+    """
+    p = select.poll()
+    try:
+        p.register(fd, 0)
+    except (OSError, ValueError):
+        return False
+    return any(ev & (select.POLLERR | select.POLLHUP) for _, ev in p.poll(0))
 
 
 class _Stream:
