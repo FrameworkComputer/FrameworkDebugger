@@ -14,6 +14,11 @@ Here's a short list:
 * PD SWD
 * SOC SPI Flash (BIOS)
 
+## Bus Pirate 5 EC backup and flashing
+
+See [the checked NPCX UART backup/flashing guide](scripts/FLASHING.md) for
+BPIO2 setup, two-read backups, verified programming and host-only tests.
+
 ## CCD (Closed Case Debug)
 
 EC & CPU UARTs can be accessed without opening the DUT (Device Under Test,
